@@ -14,6 +14,7 @@ const ENEMY_TOUCH_DAMAGE = 1;
 const KNOCKBACK_DIST = 36;
 const KNOCKBACK_TIME = 0.12;
 const TOUCH_COOLDOWN = 0.4;
+const DEFAULT_PICKUP_RADIUS = 120;
 
 // === Entity data shapes ===
 type PlayerData = {
@@ -26,6 +27,7 @@ type EnemyData = {
   speed: number;
   touchDamage: number;
   maxHP: number;
+  exp: number;
 };
 type DaggerData = {
   kind: "dagger";
@@ -33,6 +35,8 @@ type DaggerData = {
   rotSpeed: number;
   distance: number;
 };
+
+type RGB = [number, number, number];
 
 type EdgeName = "top" | "bottom" | "left" | "right";
 type SpawnLocationConfig =
@@ -45,6 +49,7 @@ type EnemyGroupConfig = {
   hp?: number;
   speed?: number;
   touchDamage?: number;
+  exp?: number;
   spawn: SpawnLocationConfig;
 };
 
@@ -67,6 +72,7 @@ const ENEMY_BASE = {
   kind: "enemy",
   speed: ENEMY_SPEED,
   touchDamage: ENEMY_TOUCH_DAMAGE,
+  exp: 1,
 } as const;
 const DAGGER_DATA: DaggerData = {
   kind: "dagger",
@@ -77,6 +83,12 @@ const DAGGER_DATA: DaggerData = {
 
 let activeEnemyCount = 0;
 const enemiesAlive = new Set<any>();
+const DEFAULT_ENEMY_EXP = ENEMY_BASE.exp;
+
+const playerStats = {
+  exp: 0,
+  pickupRadius: DEFAULT_PICKUP_RADIUS,
+};
 
 function registerEnemy(enemy: any) {
   activeEnemyCount += 1;
@@ -178,6 +190,7 @@ type EnemyOverrides = {
   hp?: number;
   speed?: number;
   touchDamage?: number;
+  exp?: number;
 };
 
 function makeEnemy(p: any, overrides: EnemyOverrides = {}) {
@@ -187,6 +200,7 @@ function makeEnemy(p: any, overrides: EnemyOverrides = {}) {
     speed: overrides.speed ?? ENEMY_BASE.speed,
     touchDamage: overrides.touchDamage ?? ENEMY_BASE.touchDamage,
     maxHP,
+    exp: overrides.exp ?? ENEMY_BASE.exp,
   };
 
   const e = k.add([
@@ -208,6 +222,14 @@ function makeEnemy(p: any, overrides: EnemyOverrides = {}) {
   attachHealthLabel(e, -24);
   registerEnemy(e);
 
+  e.on("death", () => {
+    const amount = Math.max(0, Math.round(e.data.exp ?? DEFAULT_ENEMY_EXP));
+    if (amount > 0) {
+      const origin = e.pos.clone ? e.pos.clone() : k.vec2(e.pos.x, e.pos.y);
+      dropExp(amount, origin);
+    }
+  });
+
   e.onUpdate(() => {
     const dir = unit(player.pos.sub(e.pos));
     e.move(dir.x * e.data.speed, dir.y * e.data.speed);
@@ -223,6 +245,20 @@ const randRange = (min: number, max: number) => min + Math.random() * (max - min
 
 const distribute = (idx: number, count: number) =>
   count <= 1 ? 0.5 : idx / (count - 1);
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const lighten = (color: RGB, amount: number): RGB => {
+  const a = clamp(amount, 0, 1);
+  return [
+    clamp(Math.round(color[0] + (255 - color[0]) * a), 0, 255),
+    clamp(Math.round(color[1] + (255 - color[1]) * a), 0, 255),
+    clamp(Math.round(color[2] + (255 - color[2]) * a), 0, 255),
+  ];
+};
+
+const lerpVec = (from: any, to: any, t: number) =>
+  k.vec2(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t);
 
 function jitterVec(v: any, jitter = 0) {
   if (!jitter) return k.vec2(v.x, v.y);
@@ -296,10 +332,136 @@ function spawnEnemyGroup(group: EnemyGroupConfig) {
       hp: group.hp,
       speed: group.speed,
       touchDamage: group.touchDamage,
+      exp: group.exp,
     })
   );
 }
 
+type ExpTierDef = {
+  value: number;
+  color: RGB;
+  radius: number;
+};
+
+type ExpShardComp = {
+  expValue: number;
+  magnetized: boolean;
+  magnetTime: number;
+};
+
+const EXP_TIER_DEFS: ExpTierDef[] = [
+  { value: 25, color: [255, 182, 74], radius: 12 },
+  { value: 5, color: [80, 160, 255], radius: 9 },
+  { value: 1, color: [126, 232, 126], radius: 7 },
+];
+
+const EXP_MAGNET_BASE_SPEED = 6;
+const EXP_MAGNET_SPEED_GROWTH = 4;
+
+function expTierForValue(value: number): ExpTierDef {
+  for (const tier of EXP_TIER_DEFS) {
+    if (value >= tier.value) {
+      return tier;
+    }
+  }
+  return EXP_TIER_DEFS[EXP_TIER_DEFS.length - 1];
+}
+
+function distributeExp(amount: number): number[] {
+  const drops: number[] = [];
+  let remaining = Math.floor(amount);
+  if (remaining <= 0) return drops;
+
+  const sorted = [...EXP_TIER_DEFS].sort((a, b) => b.value - a.value);
+  for (const tier of sorted) {
+    while (remaining >= tier.value) {
+      drops.push(tier.value);
+      remaining -= tier.value;
+    }
+  }
+
+  if (remaining > 0) {
+    drops.push(remaining);
+  }
+
+  return drops;
+}
+
+function spawnExpShard(value: number, origin: any) {
+  const tier = expTierForValue(value);
+  const outline = lighten(tier.color, 0.4);
+  const outlineColor = k.rgb(outline[0], outline[1], outline[2]);
+  const basePos = origin.clone ? origin.clone() : k.vec2(origin.x ?? 0, origin.y ?? 0);
+  const spawnPos = basePos.add(
+    randRange(-18, 18),
+    randRange(-18, 18)
+  );
+
+  const triHeight = tier.radius;
+  const triWidth = tier.radius * 0.9;
+  const points = [
+    k.vec2(0, -triHeight),
+    k.vec2(triWidth, triHeight),
+    k.vec2(-triWidth, triHeight),
+  ];
+  const colliderShape = new k.Polygon(points);
+
+  const shard = k.add([
+    k.pos(spawnPos),
+    k.anchor("center"),
+    k.polygon(points),
+    k.color(...tier.color),
+    k.outline(2, outlineColor),
+    k.rotate(randRange(0, 360)),
+    k.area({ shape: colliderShape, collisionIgnore: ["expShard"] }),
+    "expShard",
+    {
+      expValue: value,
+      magnetized: false,
+      magnetTime: 0,
+    } as ExpShardComp,
+  ]);
+
+  shard.onUpdate(() => {
+    const data = shard as unknown as ExpShardComp & typeof shard;
+    const toPlayer = player.pos.sub(shard.pos);
+    const distance = toPlayer.len();
+    const pickupRange = playerStats.pickupRadius ?? DEFAULT_PICKUP_RADIUS;
+
+    if (!data.magnetized && distance <= pickupRange) {
+      data.magnetized = true;
+    }
+
+    if (data.magnetized) {
+      data.magnetTime += k.dt();
+      const lerpSpeed = EXP_MAGNET_BASE_SPEED + data.magnetTime * EXP_MAGNET_SPEED_GROWTH;
+      const lerpAmount = clamp(k.dt() * lerpSpeed, 0, 1);
+      const targetPos = player.pos;
+      const newPos = lerpVec(shard.pos, targetPos, lerpAmount);
+      const dx = targetPos.x - newPos.x;
+      const dy = targetPos.y - newPos.y;
+      if (Math.hypot(dx, dy) <= 4) {
+        shard.pos = targetPos.clone ? targetPos.clone() : k.vec2(targetPos.x, targetPos.y);
+      } else {
+        shard.pos = newPos;
+      }
+    }
+
+    shard.angle += 120 * k.dt();
+  });
+
+  return shard;
+}
+
+function dropExp(total: number, origin: any) {
+  if (total <= 0) return;
+  const drops = distributeExp(total);
+  const originVec = origin.clone ? origin.clone() : k.vec2(origin.x ?? 0, origin.y ?? 0);
+  drops.forEach((value) => {
+    const dropOrigin = originVec.clone ? originVec.clone() : k.vec2(originVec.x, originVec.y);
+    spawnExpShard(value, dropOrigin);
+  });
+}
 const ARENA_CENTER = k.center();
 
 const WAVES: WaveConfig[] = [
@@ -307,8 +469,8 @@ const WAVES: WaveConfig[] = [
     name: "Warmup",
     delay: 1.5,
     enemies: [
-      { count: 3, hp: 3, spawn: { kind: "edge", edge: "random" } },
-      { count: 2, hp: 2, spawn: { kind: "random", padding: 96 } },
+      { count: 3, hp: 3, exp: 1, spawn: { kind: "edge", edge: "random" } },
+      { count: 2, hp: 2, exp: 2, spawn: { kind: "random", padding: 96 } },
     ],
   },
   {
@@ -318,6 +480,7 @@ const WAVES: WaveConfig[] = [
       {
         count: 6,
         hp: 4,
+        exp: 3,
         spawn: {
           kind: "points",
           points: [
@@ -339,6 +502,7 @@ const WAVES: WaveConfig[] = [
         count: 8,
         hp: 5,
         speed: ENEMY_SPEED * 1.1,
+        exp: 2,
         spawn: { kind: "edge", edge: "random" },
       },
     ],
@@ -351,12 +515,14 @@ const WAVES: WaveConfig[] = [
         count: 4,
         hp: 8,
         touchDamage: ENEMY_TOUCH_DAMAGE + 1,
+        exp: 8,
         spawn: { kind: "points", points: [[120, 120], [680, 120], [120, 520], [680, 520]], jitter: 24 },
       },
       {
         count: 10,
         hp: 4,
         speed: ENEMY_SPEED * 1.25,
+        exp: 2,
         spawn: { kind: "edge", edge: "random", padding: 12 },
       },
     ],
@@ -491,7 +657,7 @@ waveHud.onUpdate(() => {
 
   const waveLine =
     total > 0 ? `Wave ${displayNumber}/${total}` : waveState.currentName ?? "No waves";
-  const lines = [waveLine, status].filter(Boolean);
+  const lines = [waveLine, status, `EXP: ${playerStats.exp}`].filter(Boolean);
   waveHud.text = lines.join("\n");
 });
 
@@ -506,6 +672,14 @@ k.onCollide("enemy", "player", (enemy: any, p: any) => {
   enemy.touchTimer = TOUCH_COOLDOWN;
   p.hurt(enemy.data.touchDamage);
   knockback(p, enemy.pos);
+});
+
+k.onCollide("player", "expShard", (_player: any, shard: any) => {
+  const value = Math.max(0, Math.round(shard.expValue ?? 0));
+  if (value > 0) {
+    playerStats.exp += value;
+  }
+  k.destroy(shard);
 });
 
 // auto-clean enemy on death
