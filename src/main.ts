@@ -34,6 +34,29 @@ type DaggerData = {
   distance: number;
 };
 
+type EdgeName = "top" | "bottom" | "left" | "right";
+type SpawnLocationConfig =
+  | { kind: "random"; padding?: number }
+  | { kind: "edge"; edge?: EdgeName | "random"; padding?: number }
+  | { kind: "points"; points: [number, number][]; jitter?: number };
+
+type EnemyGroupConfig = {
+  count: number;
+  hp?: number;
+  speed?: number;
+  touchDamage?: number;
+  spawn: SpawnLocationConfig;
+};
+
+type WaveConfig = {
+  name?: string;
+  delay: number;
+  enemies: EnemyGroupConfig[];
+  repeat?: number;
+};
+
+type WavePhase = "waiting" | "spawning" | "clearing" | "done" | "stopped";
+
 // === Default data ===
 const PLAYER_DATA: PlayerData = {
   kind: "player",
@@ -51,6 +74,26 @@ const DAGGER_DATA: DaggerData = {
   rotSpeed: DAGGER_ROT_SPEED,
   distance: 40,
 };
+
+let activeEnemyCount = 0;
+const enemiesAlive = new Set<any>();
+
+function registerEnemy(enemy: any) {
+  activeEnemyCount += 1;
+  enemiesAlive.add(enemy);
+
+  enemy.on("death", () => {
+    if (enemiesAlive.delete(enemy)) {
+      activeEnemyCount = Math.max(0, activeEnemyCount - 1);
+    }
+  });
+
+  enemy.on("destroy", () => {
+    if (enemiesAlive.delete(enemy)) {
+      activeEnemyCount = Math.max(0, activeEnemyCount - 1);
+    }
+  });
+}
 
 // === Utils ===
 const unit = (v: any) => (v.len() > 0 ? v.unit() : k.vec2(0.0, 0));
@@ -131,7 +174,21 @@ dagger.onUpdate(() => {
 });
 
 // === Enemies ===
-function makeEnemy(p: any, hp = 4) {
+type EnemyOverrides = {
+  hp?: number;
+  speed?: number;
+  touchDamage?: number;
+};
+
+function makeEnemy(p: any, overrides: EnemyOverrides = {}) {
+  const maxHP = overrides.hp ?? 4;
+  const enemyData: EnemyData = {
+    kind: "enemy",
+    speed: overrides.speed ?? ENEMY_BASE.speed,
+    touchDamage: overrides.touchDamage ?? ENEMY_BASE.touchDamage,
+    maxHP,
+  };
+
   const e = k.add([
     k.pos(p),
     k.rect(28, 28),
@@ -139,16 +196,17 @@ function makeEnemy(p: any, hp = 4) {
     k.anchor("center"),
     k.area(),
     k.body(),
-    k.health(hp),
+    k.health(enemyData.maxHP),
     "enemy",
     {
       touchTimer: 0,
       _kbTween: null as any,
-      data: { ...(ENEMY_BASE as Omit<EnemyData, "maxHP">), maxHP: hp },
+      data: enemyData,
     },
   ]);
 
   attachHealthLabel(e, -24);
+  registerEnemy(e);
 
   e.onUpdate(() => {
     const dir = unit(player.pos.sub(e.pos));
@@ -159,9 +217,283 @@ function makeEnemy(p: any, hp = 4) {
   return e;
 }
 
-makeEnemy(k.vec2(150, 120), 3);
-makeEnemy(k.vec2(650, 480), 6);
-makeEnemy(k.vec2(400, 80), 4);
+const EDGES: EdgeName[] = ["top", "bottom", "left", "right"];
+
+const randRange = (min: number, max: number) => min + Math.random() * (max - min);
+
+const distribute = (idx: number, count: number) =>
+  count <= 1 ? 0.5 : idx / (count - 1);
+
+function jitterVec(v: any, jitter = 0) {
+  if (!jitter) return k.vec2(v.x, v.y);
+  return k.vec2(v.x + randRange(-jitter, jitter), v.y + randRange(-jitter, jitter));
+}
+
+function edgeSpawnPosition(edge: EdgeName, ratio: number, padding: number) {
+  const wMin = padding;
+  const wMax = k.width() - padding;
+  const hMin = padding;
+  const hMax = k.height() - padding;
+
+  switch (edge) {
+    case "top":
+      return k.vec2(wMin + (wMax - wMin) * ratio, hMin);
+    case "bottom":
+      return k.vec2(wMin + (wMax - wMin) * ratio, hMax);
+    case "left":
+      return k.vec2(wMin, hMin + (hMax - hMin) * ratio);
+    case "right":
+      return k.vec2(wMax, hMin + (hMax - hMin) * ratio);
+    default:
+      return k.vec2(k.center());
+  }
+}
+
+function resolveSpawnPositions(count: number, config: SpawnLocationConfig) {
+  const positions: any[] = [];
+
+  if (config.kind === "random") {
+    const padding = config.padding ?? 48;
+    for (let i = 0; i < count; i += 1) {
+      positions.push(
+        k.vec2(
+          randRange(padding, k.width() - padding),
+          randRange(padding, k.height() - padding)
+        )
+      );
+    }
+    return positions;
+  }
+
+  if (config.kind === "edge") {
+    const padding = config.padding ?? 48;
+    for (let i = 0; i < count; i += 1) {
+      const edgeName =
+        config.edge && config.edge !== "random"
+          ? config.edge
+          : EDGES[Math.floor(Math.random() * EDGES.length)];
+      positions.push(edgeSpawnPosition(edgeName, distribute(i, count), padding));
+    }
+    return positions;
+  }
+
+  if (config.kind === "points") {
+    const pts = config.points.length > 0 ? config.points : [[k.center().x, k.center().y]];
+    for (let i = 0; i < count; i += 1) {
+      const [x, y] = pts[i % pts.length];
+      positions.push(jitterVec(k.vec2(x, y), config.jitter));
+    }
+    return positions;
+  }
+
+  return positions;
+}
+
+function spawnEnemyGroup(group: EnemyGroupConfig) {
+  const positions = resolveSpawnPositions(group.count, group.spawn);
+  return positions.map((pos) =>
+    makeEnemy(pos, {
+      hp: group.hp,
+      speed: group.speed,
+      touchDamage: group.touchDamage,
+    })
+  );
+}
+
+const ARENA_CENTER = k.center();
+
+const WAVES: WaveConfig[] = [
+  {
+    name: "Warmup",
+    delay: 1.5,
+    enemies: [
+      { count: 3, hp: 3, spawn: { kind: "edge", edge: "random" } },
+      { count: 2, hp: 2, spawn: { kind: "random", padding: 96 } },
+    ],
+  },
+  {
+    name: "Encircle",
+    delay: 6,
+    enemies: [
+      {
+        count: 6,
+        hp: 4,
+        spawn: {
+          kind: "points",
+          points: [
+            [ARENA_CENTER.x - 220, ARENA_CENTER.y],
+            [ARENA_CENTER.x + 220, ARENA_CENTER.y],
+            [ARENA_CENTER.x, ARENA_CENTER.y - 180],
+            [ARENA_CENTER.x, ARENA_CENTER.y + 180],
+          ],
+          jitter: 36,
+        },
+      },
+    ],
+  },
+  {
+    name: "Rush",
+    delay: 7,
+    enemies: [
+      {
+        count: 8,
+        hp: 5,
+        speed: ENEMY_SPEED * 1.1,
+        spawn: { kind: "edge", edge: "random" },
+      },
+    ],
+  },
+  {
+    name: "Finale",
+    delay: 8,
+    enemies: [
+      {
+        count: 4,
+        hp: 8,
+        touchDamage: ENEMY_TOUCH_DAMAGE + 1,
+        spawn: { kind: "points", points: [[120, 120], [680, 120], [120, 520], [680, 520]], jitter: 24 },
+      },
+      {
+        count: 10,
+        hp: 4,
+        speed: ENEMY_SPEED * 1.25,
+        spawn: { kind: "edge", edge: "random", padding: 12 },
+      },
+    ],
+  },
+];
+
+const waveState: {
+  startedAt: number;
+  index: number;
+  running: boolean;
+  phase: WavePhase;
+  nextWaveAt: number | null;
+  currentName: string;
+} = {
+  startedAt: k.time(),
+  index: -1,
+  running: true,
+  phase: "waiting" as WavePhase,
+  nextWaveAt: WAVES.length > 0 ? k.time() + (WAVES[0]?.delay ?? 0) : null,
+  currentName: WAVES.length > 0 ? WAVES[0]?.name ?? "Wave 1" : "No waves",
+};
+
+function spawnWave(wave: WaveConfig, index: number) {
+  waveState.index = index;
+  waveState.phase = "spawning";
+  waveState.currentName = wave.name ?? `Wave ${index + 1}`;
+  waveState.nextWaveAt = null;
+  wave.enemies.forEach((group) => spawnEnemyGroup(group));
+}
+
+async function waitForEnemiesClear(pollSeconds = 0.25) {
+  waveState.phase = "clearing";
+  while (waveState.running && activeEnemyCount > 0) {
+    await k.wait(pollSeconds);
+  }
+}
+
+async function runWaveSequence() {
+  if (WAVES.length === 0) {
+    waveState.phase = "done";
+    waveState.currentName = "No waves configured";
+    waveState.nextWaveAt = null;
+    return;
+  }
+
+  for (let i = 0; i < WAVES.length; i += 1) {
+    const wave = WAVES[i];
+    if (!waveState.running) break;
+
+    waveState.phase = "waiting";
+    waveState.currentName = wave.name ?? `Wave ${i + 1}`;
+    waveState.nextWaveAt = wave.delay > 0 ? k.time() + wave.delay : k.time();
+
+    if (wave.delay > 0) {
+      await k.wait(wave.delay);
+    }
+
+    if (!waveState.running) break;
+    spawnWave(wave, i);
+    await waitForEnemiesClear();
+
+    if (!waveState.running) break;
+  }
+
+  if (!waveState.running) {
+    waveState.phase = "stopped";
+  } else {
+    waveState.phase = "done";
+    waveState.nextWaveAt = null;
+    waveState.currentName = "All Clear";
+  }
+}
+
+player.on("death", () => {
+  waveState.running = false;
+  waveState.phase = "stopped";
+  waveState.nextWaveAt = null;
+  waveState.currentName = "Defeat";
+});
+
+runWaveSequence().catch((err) => console.error("Wave sequence halted", err));
+
+const waveHud = k.add([
+  k.text("", { size: 20, align: "left" }),
+  k.pos(16, 16),
+  k.anchor("topleft"),
+  k.color(240, 240, 240),
+  "ui",
+]);
+
+waveHud.onUpdate(() => {
+  const total = WAVES.length;
+  const nextIn =
+    waveState.nextWaveAt != null ? Math.max(0, waveState.nextWaveAt - k.time()) : null;
+
+  let status = "";
+  switch (waveState.phase) {
+    case "waiting":
+      status =
+        nextIn != null && Number.isFinite(nextIn)
+          ? `Next: ${waveState.currentName} in ${nextIn.toFixed(1)}s`
+          : `Next: ${waveState.currentName}`;
+      break;
+    case "spawning":
+      status = `Spawning ${waveState.currentName}`;
+      break;
+    case "clearing":
+      status = `Enemies remaining: ${activeEnemyCount}`;
+      break;
+    case "done":
+      status = "All waves cleared";
+      break;
+    case "stopped":
+      status = "Player defeated";
+      break;
+    default:
+      status = waveState.currentName;
+      break;
+  }
+
+  let displayNumber = waveState.index + 1;
+  if (waveState.phase === "waiting") {
+    displayNumber = waveState.index + 2;
+  }
+  if (waveState.phase === "done") {
+    displayNumber = total;
+  }
+
+  if (total > 0) {
+    displayNumber = Math.min(Math.max(displayNumber, 1), total);
+  }
+
+  const waveLine =
+    total > 0 ? `Wave ${displayNumber}/${total}` : waveState.currentName ?? "No waves";
+  const lines = [waveLine, status].filter(Boolean);
+  waveHud.text = lines.join("\n");
+});
 
 // === Combat (now uses data on objects) ===
 k.onCollide("dagger", "enemy", (_d: any, enemy: any) => {
