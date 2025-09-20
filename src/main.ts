@@ -1,4 +1,5 @@
 import kaplay from "kaplay";
+import type { KEventController } from "kaplay";
 const k = kaplay({
   background: [0, 0, 0],
   width: 800,
@@ -62,6 +63,13 @@ type WaveConfig = {
 
 type WavePhase = "waiting" | "spawning" | "clearing" | "done" | "stopped";
 
+type UpgradeOption = {
+  id: string;
+  name: string;
+  description: string;
+  apply: () => void;
+};
+
 // === Default data ===
 const PLAYER_DATA: PlayerData = {
   kind: "player",
@@ -86,9 +94,105 @@ const enemiesAlive = new Set<any>();
 const DEFAULT_ENEMY_EXP = ENEMY_BASE.exp;
 
 const playerStats = {
+  level: 1,
   exp: 0,
+  totalExp: 0,
+  expToNext: 0,
   pickupRadius: DEFAULT_PICKUP_RADIUS,
 };
+
+const LEVEL_XP_BASE = 12;
+const LEVEL_XP_GROWTH = 8;
+
+const levelUpState = {
+  pending: 0,
+  active: false,
+};
+
+const levelUpMenuState: {
+  panel: any;
+  text: any;
+  keyHandlers: KEventController[];
+  options: UpgradeOption[];
+} = {
+  panel: null,
+  text: null,
+  keyHandlers: [],
+  options: [],
+};
+
+function expRequiredForLevel(level: number) {
+  return Math.max(1, Math.round(LEVEL_XP_BASE + (level - 1) * LEVEL_XP_GROWTH));
+}
+
+function initPlayerProgression() {
+  playerStats.exp = 0;
+  playerStats.totalExp = 0;
+  playerStats.level = 1;
+  playerStats.expToNext = expRequiredForLevel(playerStats.level);
+  levelUpState.pending = 0;
+  levelUpState.active = false;
+}
+
+function queueLevelUp() {
+  levelUpState.pending += 1;
+  if (!levelUpState.active) {
+    startLevelUpChoice();
+  }
+}
+
+function startLevelUpChoice() {
+  if (levelUpState.active) return;
+  if (levelUpState.pending <= 0) return;
+
+  levelUpState.pending -= 1;
+  levelUpState.active = true;
+
+  const options = pickUpgradeOptions(3);
+  levelUpMenuState.options = options;
+  showLevelUpMenu(options);
+}
+
+function grantExp(amount: number) {
+  if (amount <= 0) return;
+  playerStats.totalExp += amount;
+  playerStats.exp += amount;
+
+  while (playerStats.expToNext > 0 && playerStats.exp >= playerStats.expToNext) {
+    playerStats.exp -= playerStats.expToNext;
+    playerStats.level += 1;
+    playerStats.expToNext = expRequiredForLevel(playerStats.level);
+    queueLevelUp();
+  }
+
+  updateXpBarUI();
+}
+
+const xpUiRefs: { fill: any; label: any } = {
+  fill: null,
+  label: null,
+};
+
+function updateXpBarUI() {
+  const fill = xpUiRefs.fill as any;
+  if (fill) {
+    const ratio = playerStats.expToNext > 0 ? playerStats.exp / playerStats.expToNext : 0;
+    const clamped = Math.min(1, Math.max(0, ratio));
+    const baseWidth = fill.baseWidth ?? fill.width ?? 0;
+    if (typeof fill.width === "number") {
+      fill.width = baseWidth * clamped;
+    } else if (fill.scale) {
+      fill.scale.x = clamped;
+    }
+  }
+
+  const label = xpUiRefs.label as any;
+  if (label) {
+    label.text = `Level ${playerStats.level} - ${Math.round(playerStats.exp)}/${playerStats.expToNext}`;
+  }
+}
+
+initPlayerProgression();
 
 function registerEnemy(enemy: any) {
   activeEnemyCount += 1;
@@ -180,10 +284,149 @@ const dagger = k.add([
 ]);
 
 dagger.onUpdate(() => {
+  if (levelUpState.active) return;
   dagger.angle += dagger.data.rotSpeed * k.dt();
   const offset = k.Vec2.fromAngle(dagger.angle).scale(dagger.data.distance);
   dagger.pos = player.pos.add(offset);
 });
+
+const UPGRADE_POOL: UpgradeOption[] = [
+  {
+    id: "dagger-damage",
+    name: "Sharper Blades",
+    description: "+1 dagger damage",
+    apply: () => {
+      dagger.data.damage += 1;
+    },
+  },
+  {
+    id: "dagger-speed",
+    name: "Whirling Blades",
+    description: "+60°/s dagger spin",
+    apply: () => {
+      dagger.data.rotSpeed += 60;
+    },
+  },
+  {
+    id: "dagger-distance",
+    name: "Extended Chain",
+    description: "+14 dagger radius",
+    apply: () => {
+      dagger.data.distance += 14;
+    },
+  },
+  {
+    id: "player-speed",
+    name: "Boots of Swiftness",
+    description: "+40 move speed",
+    apply: () => {
+      player.data.speed += 40;
+    },
+  },
+  {
+    id: "pickup-radius",
+    name: "Vacuum Core",
+    description: "+48 pickup radius",
+    apply: () => {
+      playerStats.pickupRadius += 48;
+    },
+  },
+  {
+    id: "recovery",
+    name: "Quick Recovery",
+    description: "Restore 2 HP",
+    apply: () => {
+      if (typeof player.heal === "function") {
+        player.heal(2);
+      }
+    },
+  },
+];
+
+function pickUpgradeOptions(count: number): UpgradeOption[] {
+  const available = [...UPGRADE_POOL];
+  for (let i = available.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [available[i], available[j]] = [available[j], available[i]];
+  }
+  return available.slice(0, Math.min(count, available.length));
+}
+
+function cleanupLevelUpMenu() {
+  levelUpMenuState.keyHandlers.forEach((handler) => handler.cancel());
+  levelUpMenuState.keyHandlers = [];
+  if (levelUpMenuState.text) {
+    k.destroy(levelUpMenuState.text);
+    levelUpMenuState.text = null;
+  }
+  if (levelUpMenuState.panel) {
+    k.destroy(levelUpMenuState.panel);
+    levelUpMenuState.panel = null;
+  }
+  levelUpMenuState.options = [];
+}
+
+function finishLevelUpChoice() {
+  levelUpState.active = false;
+  cleanupLevelUpMenu();
+  if (levelUpState.pending > 0) {
+    startLevelUpChoice();
+  }
+}
+
+function applyUpgradeOption(option: UpgradeOption) {
+  option.apply();
+  updateXpBarUI();
+  finishLevelUpChoice();
+}
+
+function showLevelUpMenu(options: UpgradeOption[]) {
+  cleanupLevelUpMenu();
+  if (options.length === 0) {
+    finishLevelUpChoice();
+    return;
+  }
+
+  const panelWidth = 520;
+  const panelHeight = 240;
+  const center = k.center();
+
+  levelUpMenuState.panel = k.add([
+    k.rect(panelWidth, panelHeight),
+    k.pos(center.x, center.y),
+    k.anchor("center"),
+    k.color(20, 20, 20),
+    k.outline(2, k.rgb(220, 220, 220)),
+    k.fixed(),
+    "ui",
+  ]);
+
+  const textLines = ["LEVEL UP!", ""]; // blank line for spacing
+  options.forEach((opt, idx) => {
+    textLines.push(`${idx + 1}. ${opt.name} - ${opt.description}`);
+  });
+  textLines.push("", `Press 1-${options.length} to choose`);
+
+  levelUpMenuState.text = k.add([
+    k.text(textLines.join("\n"), {
+      size: 20,
+      align: "left",
+      width: panelWidth - 32,
+      lineSpacing: 6,
+    }),
+    k.pos(center.x - panelWidth / 2 + 16, center.y - panelHeight / 2 + 16),
+    k.anchor("topleft"),
+    k.color(240, 240, 240),
+    k.fixed(),
+    "ui",
+  ]);
+
+  options.forEach((opt, idx) => {
+    const key = `${idx + 1}`;
+    const handler = k.onKeyPress(key, () => applyUpgradeOption(opt));
+    levelUpMenuState.keyHandlers.push(handler);
+  });
+}
 
 // === Enemies ===
 type EnemyOverrides = {
@@ -231,6 +474,7 @@ function makeEnemy(p: any, overrides: EnemyOverrides = {}) {
   });
 
   e.onUpdate(() => {
+    if (levelUpState.active) return;
     const dir = unit(player.pos.sub(e.pos));
     e.move(dir.x * e.data.speed, dir.y * e.data.speed);
     if (e.touchTimer > 0) e.touchTimer -= k.dt();
@@ -605,6 +849,44 @@ player.on("death", () => {
 
 runWaveSequence().catch((err) => console.error("Wave sequence halted", err));
 
+const XP_BAR_WIDTH = 420;
+const XP_BAR_HEIGHT = 16;
+const XP_BAR_MARGIN = 16;
+const XP_BAR_BOTTOM_OFFSET = 28;
+
+k.add([
+  k.rect(XP_BAR_WIDTH + 4, XP_BAR_HEIGHT + 4),
+  k.pos(
+    XP_BAR_MARGIN - 2,
+    k.height() - XP_BAR_BOTTOM_OFFSET - XP_BAR_HEIGHT - 2
+  ),
+  k.color(30, 30, 30),
+  k.anchor("topleft"),
+  k.fixed(),
+  "ui",
+]);
+
+xpUiRefs.fill = k.add([
+  k.rect(XP_BAR_WIDTH, XP_BAR_HEIGHT),
+  k.pos(XP_BAR_MARGIN, k.height() - XP_BAR_BOTTOM_OFFSET - XP_BAR_HEIGHT),
+  k.color(90, 180, 255),
+  k.anchor("topleft"),
+  k.fixed(),
+  "ui",
+  { baseWidth: XP_BAR_WIDTH },
+]);
+
+xpUiRefs.label = k.add([
+  k.text("", { size: 16, align: "left" }),
+  k.pos(XP_BAR_MARGIN, k.height() - XP_BAR_BOTTOM_OFFSET - XP_BAR_HEIGHT - 18),
+  k.color(220, 220, 220),
+  k.anchor("topleft"),
+  k.fixed(),
+  "ui",
+]);
+
+updateXpBarUI();
+
 const waveHud = k.add([
   k.text("", { size: 20, align: "left" }),
   k.pos(16, 16),
@@ -657,7 +939,11 @@ waveHud.onUpdate(() => {
 
   const waveLine =
     total > 0 ? `Wave ${displayNumber}/${total}` : waveState.currentName ?? "No waves";
-  const lines = [waveLine, status, `EXP: ${playerStats.exp}`].filter(Boolean);
+  const lines = [
+    waveLine,
+    status,
+    `LVL ${playerStats.level} | Total XP: ${playerStats.totalExp}`,
+  ].filter(Boolean);
   waveHud.text = lines.join("\n");
 });
 
@@ -668,6 +954,7 @@ k.onCollide("dagger", "enemy", (_d: any, enemy: any) => {
 });
 
 k.onCollide("enemy", "player", (enemy: any, p: any) => {
+  if (levelUpState.active) return;
   if (enemy.touchTimer > 0) return;
   enemy.touchTimer = TOUCH_COOLDOWN;
   p.hurt(enemy.data.touchDamage);
@@ -677,7 +964,7 @@ k.onCollide("enemy", "player", (enemy: any, p: any) => {
 k.onCollide("player", "expShard", (_player: any, shard: any) => {
   const value = Math.max(0, Math.round(shard.expValue ?? 0));
   if (value > 0) {
-    playerStats.exp += value;
+    grantExp(value);
   }
   k.destroy(shard);
 });
@@ -686,8 +973,10 @@ k.onCollide("player", "expShard", (_player: any, shard: any) => {
 k.on("death", "enemy", (enemy: any) => k.destroy(enemy));
 
 // === Movement (reads player speed from data) ===
-const moveBy = (dx = 0, dy = 0) =>
+const moveBy = (dx = 0, dy = 0) => {
+  if (levelUpState.active) return;
   player.move(dx * player.data.speed, dy * player.data.speed);
+};
 k.onKeyDown("w", () => moveBy(0, -1));
 k.onKeyDown("s", () => moveBy(0, 1));
 k.onKeyDown("a", () => moveBy(-1, 0));
