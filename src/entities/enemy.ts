@@ -1,8 +1,11 @@
 import { ENEMY_EXP, ENEMY_SPEED, ENEMY_TOUCH_DAMAGE } from "../config/constants";
 import type { EnemyData, EnemyOverrides } from "../config/types";
+import { PALETTE } from "../config/palette";
 import { registerEnemy } from "../systems/enemyManager";
 import { dropExp } from "../systems/experience";
+import { levelUpState } from "../systems/playerProgression";
 import { attachHealthLabel } from "../ui/healthLabel";
+import { lighten } from "../utils/color";
 import { unitVec } from "../utils/vector";
 
 const ENEMY_BASE: Omit<EnemyData, "maxHP"> & { maxHP: number } = {
@@ -30,7 +33,8 @@ export const createEnemy = (
   const enemy = k.add([
     k.pos(position),
     k.rect(28, 28),
-    k.color(50, 180, 255),
+    k.color(...PALETTE.secondary),
+    k.outline(2, k.rgb(...lighten(PALETTE.secondary, 0.2))),
     k.anchor("center"),
     k.area(),
     k.body(),
@@ -55,6 +59,7 @@ export const createEnemy = (
   });
 
   enemy.onUpdate(() => {
+    if (levelUpState.active) return;
     const dir = unitVec(k, player.pos.sub(enemy.pos));
     enemy.move(dir.x * enemy.data.speed, dir.y * enemy.data.speed);
     if (enemy.touchTimer > 0) enemy.touchTimer -= k.dt();

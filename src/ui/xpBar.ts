@@ -4,6 +4,8 @@ import {
   XP_BAR_MARGIN,
   XP_BAR_WIDTH,
 } from "../config/constants";
+import { PALETTE } from "../config/palette";
+import { lighten } from "../utils/color";
 import { playerStats } from "../systems/playerProgression";
 
 const xpUiRefs: { fill: any; label: any } = {
@@ -18,7 +20,8 @@ export const createXpBar = (k: any) => {
       XP_BAR_MARGIN - 2,
       k.height() - XP_BAR_BOTTOM_OFFSET - XP_BAR_HEIGHT - 2
     ),
-    k.color(30, 30, 30),
+    k.color(...PALETTE.secondary),
+    k.outline(2, k.rgb(...lighten(PALETTE.secondary, 0.35))),
     k.anchor("topleft"),
     k.fixed(),
     "ui",
@@ -27,7 +30,7 @@ export const createXpBar = (k: any) => {
   xpUiRefs.fill = k.add([
     k.rect(XP_BAR_WIDTH, XP_BAR_HEIGHT),
     k.pos(XP_BAR_MARGIN, k.height() - XP_BAR_BOTTOM_OFFSET - XP_BAR_HEIGHT),
-    k.color(90, 180, 255),
+    k.color(...PALETTE.primary),
     k.anchor("topleft"),
     k.fixed(),
     "ui",
@@ -40,7 +43,7 @@ export const createXpBar = (k: any) => {
       XP_BAR_MARGIN,
       k.height() - XP_BAR_BOTTOM_OFFSET - XP_BAR_HEIGHT - 18
     ),
-    k.color(220, 220, 220),
+    k.color(...PALETTE.text),
     k.anchor("topleft"),
     k.fixed(),
     "ui",

@@ -2,6 +2,7 @@ import {
   EXP_MAGNET_BASE_SPEED,
   EXP_MAGNET_SPEED_GROWTH,
 } from "../config/constants";
+import { PALETTE } from "../config/palette";
 import type { ExpShardComp, ExpTierDef, RGB } from "../config/types";
 import { lighten } from "../utils/color";
 import { clamp, randRange } from "../utils/math";
@@ -9,9 +10,9 @@ import { lerpVec } from "../utils/vector";
 import { playerStats } from "./playerProgression";
 
 const EXP_TIER_DEFS: ExpTierDef[] = [
-  { value: 25, color: [255, 182, 74], radius: 12 },
-  { value: 5, color: [80, 160, 255], radius: 9 },
-  { value: 1, color: [126, 232, 126], radius: 7 },
+  { value: 25, color: PALETTE.ember, radius: 12 },
+  { value: 5, color: PALETTE.primary, radius: 9 },
+  { value: 1, color: PALETTE.accent, radius: 7 },
 ];
 
 const expTierForValue = (value: number): ExpTierDef => {

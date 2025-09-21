@@ -2,6 +2,7 @@ import kaplay from "kaplay";
 
 import { ARENA_HEIGHT, ARENA_WIDTH, TOUCH_COOLDOWN } from "./config/constants";
 import { createDagger } from "./entities/dagger";
+import { createFastSword } from "./entities/fastSword";
 import { createPlayer } from "./entities/player";
 import { createUpgradeManager } from "./systems/upgradeManager";
 import {
@@ -15,7 +16,7 @@ import { createXpBar } from "./ui/xpBar";
 import { createWaveHud } from "./ui/waveHud";
 
 const k = kaplay({
-  background: [0, 0, 0],
+  background: [11, 8, 4],
   width: ARENA_WIDTH,
   height: ARENA_HEIGHT,
   canvas: document.querySelector("canvas") ?? undefined,
@@ -24,9 +25,10 @@ initPlayerProgression();
 
 const player = createPlayer(k);
 const dagger = createDagger(k, player);
+const fastSword = createFastSword(k, player);
 
 const { updateXpBarUI } = createXpBar(k);
-createUpgradeManager(k, player, dagger, updateXpBarUI);
+createUpgradeManager(k, dagger, fastSword, updateXpBarUI);
 
 const waveManager = createWaveManager(k, player);
 createWaveHud(k, waveManager);
@@ -43,6 +45,19 @@ player.on("death", () => {
 k.onCollide("dagger", "enemy", (_d: any, enemy: any) => {
   enemy.hurt(dagger.data.damage);
   knockback(k, enemy, player.pos);
+});
+
+k.onCollide("fastSwordSlash", "enemy", (slash: any, enemy: any) => {
+  if (!slash.hitTargets) {
+    slash.hitTargets = new Set();
+  }
+  if (slash.hitTargets.has(enemy)) return;
+  slash.hitTargets.add(enemy);
+  const damage = Math.max(0, slash.damage ?? 0);
+  if (damage > 0) {
+    enemy.hurt(damage);
+  }
+  knockback(k, enemy, slash.pos ?? player.pos);
 });
 
 k.onCollide("enemy", "player", (enemy: any, p: any) => {
@@ -67,7 +82,14 @@ k.on("death", "enemy", (enemy: any) => k.destroy(enemy));
 // === Movement ===
 const moveBy = (dx = 0, dy = 0) => {
   if (levelUpState.active) return;
-  player.move(dx * player.data.speed, dy * player.data.speed);
+  const dir = k.vec2(dx, dy);
+  const len = dir.len();
+  if (len > 0.01) {
+    const unit = dir.unit();
+    player.data.facing = { x: unit.x, y: unit.y };
+    const magnitude = Math.min(1, len);
+    player.move(unit.x * player.data.speed * magnitude, unit.y * player.data.speed * magnitude);
+  }
 };
 
 k.onKeyDown("w", () => moveBy(0, -1));

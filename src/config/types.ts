@@ -2,6 +2,7 @@ export type PlayerData = {
   kind: "player";
   speed: number;
   maxHP: number;
+  facing: { x: number; y: number };
 };
 
 export type EnemyData = {
@@ -24,6 +25,23 @@ export type DaggerData = {
   damage: number;
   rotSpeed: number;
   distance: number;
+  level: number;
+  count: number;
+};
+
+export type FastSwordData = {
+  kind: "fastSword";
+  level: number;
+  active: boolean;
+  slashCount: number;
+  damage: number;
+  cooldown: number;
+  range: number;
+  spacing: number;
+  slashWidth: number;
+  slashHeight: number;
+  slashDuration: number;
+  sequenceDelay: number;
 };
 
 export type RGB = [number, number, number];

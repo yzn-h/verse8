@@ -1,3 +1,4 @@
+import { PALETTE } from "../config/palette";
 import { playerStats } from "../systems/playerProgression";
 import { getActiveEnemyCount } from "../systems/enemyManager";
 import type { WaveManager } from "../systems/waveManager";
@@ -7,7 +8,7 @@ export const createWaveHud = (k: any, waveManager: WaveManager) => {
     k.text("", { size: 20, align: "left" }),
     k.pos(16, 16),
     k.anchor("topleft"),
-    k.color(240, 240, 240),
+    k.color(...PALETTE.text),
     "ui",
   ]);
 

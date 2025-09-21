@@ -1,9 +1,19 @@
+import { PALETTE } from "../config/palette";
 import type { UpgradeOption } from "../config/types";
+import {
+  applyDaggerDefinition,
+  getNextDaggerLevel,
+  DAGGER_LEVELS,
+} from "../entities/dagger";
+import {
+  applyFastSwordDefinition,
+  getNextFastSwordLevel,
+} from "../entities/fastSword";
+import { lighten } from "../utils/color";
 import {
   consumePendingLevelUp,
   levelUpState,
   onLevelUpQueued,
-  playerStats,
   setLevelUpActive,
 } from "./playerProgression";
 
@@ -19,58 +29,83 @@ const levelUpMenuState: {
   options: [],
 };
 
-const buildUpgradePool = (player: any, dagger: any): UpgradeOption[] => [
-  {
-    id: "dagger-damage",
-    name: "Sharper Blades",
-    description: "+1 dagger damage",
+const formatStatDelta = (
+  label: string,
+  value: number,
+  unit = ""
+): string | null => {
+  if (value === 0) return null;
+  const prefix = value > 0 ? "+" : "";
+  if (unit) {
+    return `${prefix}${value}${unit} ${label}`;
+  }
+  return `${prefix}${value} ${label}`;
+};
+
+const buildDaggerUpgradeOption = (dagger: any): UpgradeOption | null => {
+  const currentLevel = dagger.data.level ?? 1;
+  const nextDef = getNextDaggerLevel(currentLevel);
+  if (!nextDef) return null;
+
+  const prevDef =
+    DAGGER_LEVELS.find((def) => def.level === currentLevel) ?? DAGGER_LEVELS[0];
+  const countDelta = nextDef.count - prevDef.count;
+  const damageDelta = nextDef.damage - prevDef.damage;
+  const speedDelta = nextDef.rotSpeed - prevDef.rotSpeed;
+  const distanceDelta = nextDef.distance - prevDef.distance;
+
+  const deltas = [
+    formatStatDelta(
+      `dagger${Math.abs(countDelta) === 1 ? "" : "s"}`,
+      countDelta
+    ),
+    formatStatDelta("damage", damageDelta),
+    formatStatDelta("spin", speedDelta, "°/s"),
+    formatStatDelta("radius", distanceDelta),
+  ].filter(Boolean);
+
+  const statsText = deltas.length > 0 ? ` (${deltas.join(", ")})` : "";
+
+  return {
+    id: `dagger-level-${nextDef.level}`,
+    name: `${nextDef.name} (Lv.${nextDef.level})`,
+    description: `${nextDef.description}${statsText}`,
     apply: () => {
-      dagger.data.damage += 1;
+      applyDaggerDefinition(dagger, nextDef);
     },
-  },
-  {
-    id: "dagger-speed",
-    name: "Whirling Blades",
-    description: "+60°/s dagger spin",
+  };
+};
+
+const buildFastSwordUpgradeOption = (sword: any): UpgradeOption | null => {
+  const currentLevel = sword.data.level ?? 0;
+  const nextDef = getNextFastSwordLevel(currentLevel);
+  if (!nextDef) return null;
+
+  return {
+    id: `fast-sword-level-${nextDef.level}`,
+    name: `${nextDef.name} (Lv.${nextDef.level})`,
+    description: nextDef.description,
     apply: () => {
-      dagger.data.rotSpeed += 60;
+      applyFastSwordDefinition(sword, nextDef);
     },
-  },
-  {
-    id: "dagger-distance",
-    name: "Extended Chain",
-    description: "+14 dagger radius",
-    apply: () => {
-      dagger.data.distance += 14;
-    },
-  },
-  {
-    id: "player-speed",
-    name: "Boots of Swiftness",
-    description: "+40 move speed",
-    apply: () => {
-      player.data.speed += 40;
-    },
-  },
-  {
-    id: "pickup-radius",
-    name: "Vacuum Core",
-    description: "+48 pickup radius",
-    apply: () => {
-      playerStats.pickupRadius += 48;
-    },
-  },
-  {
-    id: "recovery",
-    name: "Quick Recovery",
-    description: "Restore 2 HP",
-    apply: () => {
-      if (typeof player.heal === "function") {
-        player.heal(2);
-      }
-    },
-  },
-];
+  };
+};
+
+const buildUpgradePool = (dagger: any, sword: any): UpgradeOption[] => {
+  const pool: UpgradeOption[] = [];
+
+  const daggerUpgrade = buildDaggerUpgradeOption(dagger);
+  if (daggerUpgrade) {
+    pool.push(daggerUpgrade);
+  }
+
+  const swordUpgrade = buildFastSwordUpgradeOption(sword);
+  if (swordUpgrade) {
+    pool.push(swordUpgrade);
+  }
+
+  return pool;
+};
 
 const pickUpgradeOptions = (
   pool: UpgradeOption[],
@@ -100,12 +135,10 @@ const cleanupLevelUpMenu = (k: any) => {
 
 export const createUpgradeManager = (
   k: any,
-  player: any,
   dagger: any,
+  fastSword: any,
   refreshXpBar: () => void
 ) => {
-  const upgradePool = buildUpgradePool(player, dagger);
-
   const showLevelUpMenu = (options: UpgradeOption[]) => {
     cleanupLevelUpMenu(k);
     if (options.length === 0) {
@@ -121,8 +154,8 @@ export const createUpgradeManager = (
       k.rect(panelWidth, panelHeight),
       k.pos(center.x, center.y),
       k.anchor("center"),
-      k.color(20, 20, 20),
-      k.outline(2, k.rgb(220, 220, 220)),
+      k.color(...PALETTE.secondary),
+      k.outline(2, k.rgb(...lighten(PALETTE.secondary, 0.4))),
       k.fixed(),
       "ui",
     ]);
@@ -131,7 +164,11 @@ export const createUpgradeManager = (
     options.forEach((opt, idx) => {
       textLines.push(`${idx + 1}. ${opt.name} - ${opt.description}`);
     });
-    textLines.push("", `Press 1-${options.length} to choose`);
+    if (options.length === 1) {
+      textLines.push("", "Press 1 to choose");
+    } else {
+      textLines.push("", `Press 1-${options.length} to choose`);
+    }
 
     levelUpMenuState.text = k.add([
       k.text(textLines.join("\n"), {
@@ -142,7 +179,7 @@ export const createUpgradeManager = (
       }),
       k.pos(center.x - panelWidth / 2 + 16, center.y - panelHeight / 2 + 16),
       k.anchor("topleft"),
-      k.color(240, 240, 240),
+      k.color(...PALETTE.text),
       k.fixed(),
       "ui",
     ]);
@@ -158,7 +195,8 @@ export const createUpgradeManager = (
     if (!consumePendingLevelUp()) return;
 
     setLevelUpActive(true);
-    const options = pickUpgradeOptions(upgradePool, 3);
+    const pool = buildUpgradePool(dagger, fastSword);
+    const options = pickUpgradeOptions(pool, 3);
     levelUpMenuState.options = options;
     showLevelUpMenu(options);
   }
