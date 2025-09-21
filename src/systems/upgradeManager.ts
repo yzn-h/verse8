@@ -17,6 +17,12 @@ import {
   setLevelUpActive,
 } from "./playerProgression";
 
+type UpgradeManagerHooks = {
+  onMenuOpen?: () => void;
+  onMenuClose?: () => void;
+  onUpgradeApplied?: () => void;
+};
+
 const levelUpMenuState: {
   panel: any;
   text: any;
@@ -137,7 +143,8 @@ export const createUpgradeManager = (
   k: any,
   dagger: any,
   fastSword: any,
-  refreshXpBar: () => void
+  refreshXpBar: () => void,
+  hooks: UpgradeManagerHooks = {}
 ) => {
   const showLevelUpMenu = (options: UpgradeOption[]) => {
     cleanupLevelUpMenu(k);
@@ -145,6 +152,8 @@ export const createUpgradeManager = (
       finishLevelUpChoice();
       return;
     }
+
+    hooks.onMenuOpen?.();
 
     const panelWidth = 520;
     const panelHeight = 240;
@@ -202,8 +211,12 @@ export const createUpgradeManager = (
   }
 
   function finishLevelUpChoice() {
+    const wasVisible = Boolean(levelUpMenuState.panel || levelUpMenuState.text);
     setLevelUpActive(false);
     cleanupLevelUpMenu(k);
+    if (wasVisible) {
+      hooks.onMenuClose?.();
+    }
     if (levelUpState.pending > 0) {
       startLevelUpChoice();
     }
@@ -211,6 +224,7 @@ export const createUpgradeManager = (
 
   function applyUpgradeOption(option: UpgradeOption) {
     option.apply();
+    hooks.onUpgradeApplied?.();
     refreshXpBar();
     finishLevelUpChoice();
   }
@@ -226,6 +240,12 @@ export const createUpgradeManager = (
   return {
     startLevelUpChoice,
     finishLevelUpChoice,
-    cancelMenu: () => cleanupLevelUpMenu(k),
+    cancelMenu: () => {
+      const wasVisible = Boolean(levelUpMenuState.panel || levelUpMenuState.text);
+      cleanupLevelUpMenu(k);
+      if (wasVisible) {
+        hooks.onMenuClose?.();
+      }
+    },
   };
 };

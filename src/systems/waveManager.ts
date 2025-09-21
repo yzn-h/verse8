@@ -19,6 +19,10 @@ const EDGES: EdgeName[] = ["top", "bottom", "left", "right"];
 
 const SPAWN_MARKER_TAG = "spawnPreview";
 
+type WaveManagerHooks = {
+  onWaveSpawn?: (wave: WaveConfig, index: number) => void;
+};
+
 const edgeSpawnPosition = (
   k: any,
   edge: EdgeName,
@@ -141,7 +145,11 @@ const spawnEnemyGroup = (
 
 export type WaveManager = ReturnType<typeof createWaveManager>;
 
-export const createWaveManager = (k: any, player: any) => {
+export const createWaveManager = (
+  k: any,
+  player: any,
+  hooks: WaveManagerHooks = {}
+) => {
   const ARENA_CENTER = k.center();
 
   const spawnPreviewState: {
@@ -443,6 +451,7 @@ export const createWaveManager = (k: any, player: any) => {
     waveState.phase = "spawning";
     waveState.currentName = wave.name ?? `Wave ${index + 1}`;
     waveState.nextWaveAt = null;
+    hooks.onWaveSpawn?.(wave, index);
     wave.enemies.forEach((group, groupIndex) =>
       spawnEnemyGroup(k, player, group, positions?.[groupIndex])
     );

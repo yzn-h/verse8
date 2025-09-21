@@ -30,22 +30,49 @@ import {
   resetToStart,
 } from "./systems/gameState";
 import { createGameMenus } from "./ui/gameMenus";
+import { createAudioManager } from "./systems/audioManager";
 
 const k = kaplay({
+  backgroundAudio: true,
   background: [11, 8, 4],
   width: ARENA_WIDTH,
   height: ARENA_HEIGHT,
   canvas: document.querySelector("canvas") ?? undefined,
 });
 
+k.volume(0.6);
+
+const audio = createAudioManager(k);
+
 const player = createPlayer(k);
 const dagger = createDagger(k, player);
 const fastSword = createFastSword(k, player);
 
 const { updateXpBarUI } = createXpBar(k);
-const upgradeManager = createUpgradeManager(k, dagger, fastSword, updateXpBarUI);
+const upgradeManager = createUpgradeManager(
+  k,
+  dagger,
+  fastSword,
+  updateXpBarUI,
+  {
+    onMenuOpen: () => {
+      audio.fadeAmbientTo(0.16, 0.4);
+      audio.playUpgradeOpen();
+    },
+    onMenuClose: () => {
+      audio.fadeAmbientTo(0.24, 0.5);
+    },
+    onUpgradeApplied: () => {
+      audio.playUpgradeConfirm();
+    },
+  }
+);
 
-const waveManager = createWaveManager(k, player);
+const waveManager = createWaveManager(k, player, {
+  onWaveSpawn: () => {
+    audio.playWaveSpawn();
+  },
+});
 createWaveHud(k, waveManager);
 
 let runStartTime = 0;
@@ -89,6 +116,8 @@ const resetRunState = (options: { showStartMenu?: boolean } = {}) => {
   resetToStart();
   runStartTime = 0;
 
+  audio.fadeAmbientTo(0.12, 0.8);
+
   menus?.hidePauseMenu();
   menus?.hideGameOverMenu();
   if (options.showStartMenu !== false) {
@@ -101,6 +130,9 @@ const resetRunState = (options: { showStartMenu?: boolean } = {}) => {
 const resumeFromPause = () => {
   if (getGamePhase() !== "paused") return;
   resumeGameplay();
+  audio.resumeAmbient();
+  audio.fadeAmbientTo(0.24, 0.4);
+  audio.playUiConfirm();
   menus?.hidePauseMenu();
 };
 
@@ -109,6 +141,10 @@ const startRun = () => {
   menus?.hideStartMenu();
   menus?.hidePauseMenu();
   menus?.hideGameOverMenu();
+  audio.startAmbient();
+  audio.resumeAmbient();
+  audio.fadeAmbientTo(0.24, 1.1);
+  audio.playUiConfirm();
   startGameplay();
   runStartTime = k.time();
   waveManager.startWaves();
@@ -122,6 +158,8 @@ const togglePauseMenu = () => {
     resumeFromPause();
   } else if (phase === "running") {
     pauseGameplay();
+    audio.fadeAmbientTo(0.14, 0.5);
+    audio.playUiConfirm();
     menus?.showPauseMenu();
   }
 };
@@ -148,6 +186,8 @@ player.on("death", () => {
   waveManager.stopWaves();
   upgradeManager.cancelMenu();
   markGameOver();
+  audio.fadeAmbientTo(0.1, 1.2);
+  audio.playUiConfirm();
   menus?.hidePauseMenu();
 
   const { waveState, WAVES } = waveManager;
@@ -157,7 +197,8 @@ player.on("death", () => {
   if (totalWaves > 0) {
     waveNumber = Math.min(waveNumber, totalWaves);
   }
-  const survivalSeconds = runStartTime > 0 ? Math.max(0, k.time() - runStartTime) : 0;
+  const survivalSeconds =
+    runStartTime > 0 ? Math.max(0, k.time() - runStartTime) : 0;
   const details: string[] = [];
   details.push(
     totalWaves > 0
@@ -180,6 +221,9 @@ k.onCollide("dagger", "enemy", (_d: any, enemy: any) => {
   if (!isGameRunning()) return;
   enemy.hurt(dagger.data.damage);
   knockback(k, enemy, player.pos, DAGGER_KNOCKBACK_DIST);
+  if (Math.random() < 0.85) {
+    audio.playEnemyHit();
+  }
 });
 
 k.onCollide("fastSwordSlash", "enemy", (slash: any, enemy: any) => {
@@ -194,6 +238,9 @@ k.onCollide("fastSwordSlash", "enemy", (slash: any, enemy: any) => {
     enemy.hurt(damage);
   }
   knockback(k, enemy, slash.pos ?? player.pos);
+  if (damage > 0 && Math.random() < 0.7) {
+    audio.playEnemyHit();
+  }
 });
 
 k.onCollide("enemy", "player", (enemy: any, p: any) => {
@@ -203,6 +250,7 @@ k.onCollide("enemy", "player", (enemy: any, p: any) => {
   enemy.touchTimer = TOUCH_COOLDOWN;
   p.hurt(enemy.data.touchDamage);
   knockback(k, p, enemy.pos);
+  audio.playPlayerHit();
 });
 
 k.onCollide("player", "expShard", (_player: any, shard: any) => {
@@ -211,6 +259,7 @@ k.onCollide("player", "expShard", (_player: any, shard: any) => {
   if (value > 0) {
     grantExp(value);
     updateXpBarUI();
+    audio.playXpPickup();
   }
   k.destroy(shard);
 });
@@ -227,7 +276,10 @@ const moveBy = (dx = 0, dy = 0) => {
     const unit = dir.unit();
     player.data.facing = { x: unit.x, y: unit.y };
     const magnitude = Math.min(1, len);
-    player.move(unit.x * player.data.speed * magnitude, unit.y * player.data.speed * magnitude);
+    player.move(
+      unit.x * player.data.speed * magnitude,
+      unit.y * player.data.speed * magnitude
+    );
   }
 };
 
