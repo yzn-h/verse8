@@ -22,42 +22,42 @@ export type DaggerLevelDefinition = {
 export const DAGGER_LEVELS: DaggerLevelDefinition[] = [
   {
     level: 1,
-    name: "Orbiting Knife",
-    description: "A single dagger circles the player.",
-    count: 1,
+    name: "Twin Daggers",
+    description: "Two blades orbit quickly around the hunter.",
+    count: 2,
     damage: DAGGER_DAMAGE,
     rotSpeed: DAGGER_ROT_SPEED,
     distance: DAGGER_DISTANCE,
   },
   {
     level: 2,
-    name: "Twin Daggers",
+    name: "Triple Threat",
     description:
-      "Adds a second blade opposite the first with more speed, reach, and damage.",
-    count: 2,
+      "Adds a third blade plus extra reach and momentum for heavier hits.",
+    count: 3,
     damage: DAGGER_DAMAGE + 1,
-    rotSpeed: DAGGER_ROT_SPEED + 60,
-    distance: DAGGER_DISTANCE + 24,
+    rotSpeed: DAGGER_ROT_SPEED + 70,
+    distance: DAGGER_DISTANCE + 20,
   },
   {
     level: 3,
-    name: "Quad Spin",
+    name: "Quintet",
     description:
-      "Summons two more daggers for a four-blade ring with higher damage and speed.",
-    count: 4,
+      "Five daggers form a dense ring with even faster rotation and bite.",
+    count: 5,
     damage: DAGGER_DAMAGE + 2,
-    rotSpeed: DAGGER_ROT_SPEED + 120,
-    distance: DAGGER_DISTANCE + 48,
+    rotSpeed: DAGGER_ROT_SPEED + 140,
+    distance: DAGGER_DISTANCE + 36,
   },
   {
     level: 4,
     name: "Blade Storm",
     description:
-      "Fills the orbit with six daggers that strike harder, faster, and farther.",
-    count: 6,
+      "Seven blades surge at maximum speed, carving space around the player.",
+    count: 7,
     damage: DAGGER_DAMAGE + 3,
-    rotSpeed: DAGGER_ROT_SPEED + 180,
-    distance: DAGGER_DISTANCE + 72,
+    rotSpeed: DAGGER_ROT_SPEED + 200,
+    distance: DAGGER_DISTANCE + 60,
   },
 ];
 
@@ -91,7 +91,7 @@ export const DAGGER_DATA: DaggerData = {
   rotSpeed: DAGGER_ROT_SPEED,
   distance: DAGGER_DISTANCE,
   level: 1,
-  count: 1,
+  count: 2,
 };
 
 export const createDagger = (k: any, player: any) => {

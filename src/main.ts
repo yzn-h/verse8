@@ -1,6 +1,11 @@
 import kaplay from "kaplay";
 
-import { ARENA_HEIGHT, ARENA_WIDTH, TOUCH_COOLDOWN } from "./config/constants";
+import {
+  ARENA_HEIGHT,
+  ARENA_WIDTH,
+  DAGGER_KNOCKBACK_DIST,
+  TOUCH_COOLDOWN,
+} from "./config/constants";
 import { createDagger, applyDaggerLevel, DAGGER_DATA } from "./entities/dagger";
 import { createFastSword, FAST_SWORD_DATA } from "./entities/fastSword";
 import { createPlayer } from "./entities/player";
@@ -174,7 +179,7 @@ k.onGamepadButtonPress?.("start", togglePauseMenu);
 k.onCollide("dagger", "enemy", (_d: any, enemy: any) => {
   if (!isGameRunning()) return;
   enemy.hurt(dagger.data.damage);
-  knockback(k, enemy, player.pos);
+  knockback(k, enemy, player.pos, DAGGER_KNOCKBACK_DIST);
 });
 
 k.onCollide("fastSwordSlash", "enemy", (slash: any, enemy: any) => {

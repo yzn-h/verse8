@@ -22,8 +22,8 @@ export const FAST_SWORD_LEVELS: FastSwordLevelDefinition[] = [
   {
     level: 1,
     name: "Vento Slash",
-    description: "Unleash three rapid slashes just ahead of the hunter.",
-    slashCount: 3,
+    description: "Unleash a single precise slash straight ahead.",
+    slashCount: 1,
     damage: 2,
     cooldown: 0.9,
     range: 60,
@@ -36,8 +36,8 @@ export const FAST_SWORD_LEVELS: FastSwordLevelDefinition[] = [
   {
     level: 2,
     name: "Gale Edge",
-    description: "Adds a fourth cut and tightens the cooldown.",
-    slashCount: 4,
+    description: "Adds two more cuts and tightens the cooldown.",
+    slashCount: 3,
     damage: 3,
     cooldown: 0.75,
     range: 68,
