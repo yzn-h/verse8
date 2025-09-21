@@ -30,19 +30,30 @@ export type DaggerData = {
 };
 
 export type FastSwordData = {
-  kind: "fastSword";
-  level: number;
-  active: boolean;
-  slashCount: number;
-  damage: number;
-  cooldown: number;
-  range: number;
-  spacing: number;
-  slashWidth: number;
-  slashHeight: number;
-  slashDuration: number;
-  sequenceDelay: number;
-};
+   kind: "fastSword";
+   level: number;
+   active: boolean;
+   slashCount: number;
+   damage: number;
+   cooldown: number;
+   range: number;
+   spacing: number;
+   slashWidth: number;
+   slashHeight: number;
+   slashDuration: number;
+   sequenceDelay: number;
+ };
+
+export type RangedEnemyData = {
+   kind: "rangedEnemy";
+   speed: number;
+   touchDamage: number;
+   maxHP: number;
+   exp: number;
+   attackDistance: number;
+   bulletSpeed: number;
+   bulletDamage: number;
+ };
 
 export type RGB = [number, number, number];
 
@@ -54,13 +65,14 @@ export type SpawnLocationConfig =
   | { kind: "points"; points: [number, number][]; jitter?: number };
 
 export type EnemyGroupConfig = {
-  count: number;
-  hp?: number;
-  speed?: number;
-  touchDamage?: number;
-  exp?: number;
-  spawn: SpawnLocationConfig;
-};
+   count: number;
+   hp?: number;
+   speed?: number;
+   touchDamage?: number;
+   exp?: number;
+   spawn: SpawnLocationConfig;
+   enemyType?: "basic" | "ranged";
+ };
 
 export type WaveConfig = {
   name?: string;

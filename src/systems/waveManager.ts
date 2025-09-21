@@ -11,6 +11,7 @@ import { lighten } from "../utils/color";
 import { distribute, randRange } from "../utils/math";
 import { jitterVec } from "../utils/vector";
 import { createEnemy } from "../entities/enemy";
+import { createRangedEnemy } from "../entities/rangedEnemy";
 import { getActiveEnemyCount } from "./enemyManager";
 import { isGameRunning } from "./gameState";
 import { levelUpState } from "./playerProgression";
@@ -133,14 +134,23 @@ const spawnEnemyGroup = (
     resolved.push(...generated);
   }
 
-  return resolved.slice(0, group.count).map((pos) =>
-    createEnemy(k, player, pos, {
-      hp: group.hp,
-      speed: group.speed,
-      touchDamage: group.touchDamage,
-      exp: group.exp,
-    })
-  );
+  return resolved.slice(0, group.count).map((pos) => {
+    if (group.enemyType === "ranged") {
+      return createRangedEnemy(k, player, pos, {
+        maxHP: group.hp,
+        speed: group.speed,
+        touchDamage: group.touchDamage,
+        exp: group.exp,
+      });
+    } else {
+      return createEnemy(k, player, pos, {
+        hp: group.hp,
+        speed: group.speed,
+        touchDamage: group.touchDamage,
+        exp: group.exp,
+      });
+    }
+  });
 };
 
 export type WaveManager = ReturnType<typeof createWaveManager>;
@@ -280,35 +290,42 @@ export const createWaveManager = (
         },
       ],
     },
-    {
-      name: "Siege",
-      delay: 1,
-      enemies: [
-        {
-          count: 4,
-          hp: 8,
-          touchDamage: ENEMY_TOUCH_DAMAGE + 1,
-          exp: 8,
-          spawn: {
-            kind: "points",
-            points: [
-              [120, 120],
-              [680, 120],
-              [120, 520],
-              [680, 520],
-            ],
-            jitter: 24,
-          },
-        },
-        {
-          count: 10,
-          hp: 4,
-          speed: ENEMY_SPEED * 1.25,
-          exp: 2,
-          spawn: { kind: "edge", edge: "random", padding: 12 },
-        },
-      ],
-    },
+     {
+       name: "Siege",
+       delay: 1,
+       enemies: [
+         {
+           count: 4,
+           hp: 8,
+           touchDamage: ENEMY_TOUCH_DAMAGE + 1,
+           exp: 8,
+           spawn: {
+             kind: "points",
+             points: [
+               [120, 120],
+               [680, 120],
+               [120, 520],
+               [680, 520],
+             ],
+             jitter: 24,
+           },
+         },
+         {
+           count: 10,
+           hp: 4,
+           speed: ENEMY_SPEED * 1.25,
+           exp: 2,
+           spawn: { kind: "edge", edge: "random", padding: 12 },
+         },
+         {
+           count: 3,
+           hp: 6,
+           exp: 4,
+           enemyType: "ranged",
+           spawn: { kind: "random", padding: 150 },
+         },
+       ],
+     },
     {
       name: "Crossfire",
       delay: 1,
@@ -319,21 +336,22 @@ export const createWaveManager = (
           exp: 3,
           spawn: { kind: "edge", edge: "random", padding: 32 },
         },
-        {
-          count: 4,
-          hp: 7,
-          exp: 5,
-          spawn: {
-            kind: "points",
-            points: [
-              [ARENA_CENTER.x - 260, ARENA_CENTER.y - 140],
-              [ARENA_CENTER.x + 260, ARENA_CENTER.y + 140],
-              [ARENA_CENTER.x - 260, ARENA_CENTER.y + 140],
-              [ARENA_CENTER.x + 260, ARENA_CENTER.y - 140],
-            ],
-            jitter: 30,
-          },
-        },
+         {
+           count: 4,
+           hp: 7,
+           exp: 5,
+           enemyType: "ranged",
+           spawn: {
+             kind: "points",
+             points: [
+               [ARENA_CENTER.x - 260, ARENA_CENTER.y - 140],
+               [ARENA_CENTER.x + 260, ARENA_CENTER.y + 140],
+               [ARENA_CENTER.x - 260, ARENA_CENTER.y + 140],
+               [ARENA_CENTER.x + 260, ARENA_CENTER.y - 140],
+             ],
+             jitter: 30,
+           },
+         },
       ],
     },
     {
@@ -359,24 +377,25 @@ export const createWaveManager = (
       name: "Bulwark",
       delay: 1,
       enemies: [
-        {
-          count: 6,
-          hp: 12,
-          touchDamage: ENEMY_TOUCH_DAMAGE + 1,
-          exp: 8,
-          spawn: {
-            kind: "points",
-            points: [
-              [ARENA_CENTER.x - 200, ARENA_CENTER.y - 120],
-              [ARENA_CENTER.x + 200, ARENA_CENTER.y - 120],
-              [ARENA_CENTER.x - 200, ARENA_CENTER.y + 120],
-              [ARENA_CENTER.x + 200, ARENA_CENTER.y + 120],
-              [ARENA_CENTER.x, ARENA_CENTER.y - 200],
-              [ARENA_CENTER.x, ARENA_CENTER.y + 200],
-            ],
-            jitter: 20,
-          },
-        },
+         {
+           count: 6,
+           hp: 12,
+           touchDamage: ENEMY_TOUCH_DAMAGE + 1,
+           exp: 8,
+           enemyType: "ranged",
+           spawn: {
+             kind: "points",
+             points: [
+               [ARENA_CENTER.x - 200, ARENA_CENTER.y - 120],
+               [ARENA_CENTER.x + 200, ARENA_CENTER.y - 120],
+               [ARENA_CENTER.x - 200, ARENA_CENTER.y + 120],
+               [ARENA_CENTER.x + 200, ARENA_CENTER.y + 120],
+               [ARENA_CENTER.x, ARENA_CENTER.y - 200],
+               [ARENA_CENTER.x, ARENA_CENTER.y + 200],
+             ],
+             jitter: 20,
+           },
+         },
         {
           count: 8,
           hp: 6,
@@ -397,24 +416,25 @@ export const createWaveManager = (
           exp: 4,
           spawn: { kind: "edge", edge: "random", padding: 16 },
         },
-        {
-          count: 6,
-          hp: 14,
-          touchDamage: ENEMY_TOUCH_DAMAGE + 2,
-          exp: 10,
-          spawn: {
-            kind: "points",
-            points: [
-              [ARENA_CENTER.x - 240, ARENA_CENTER.y],
-              [ARENA_CENTER.x + 240, ARENA_CENTER.y],
-              [ARENA_CENTER.x, ARENA_CENTER.y - 220],
-              [ARENA_CENTER.x, ARENA_CENTER.y + 220],
-              [ARENA_CENTER.x - 160, ARENA_CENTER.y - 160],
-              [ARENA_CENTER.x + 160, ARENA_CENTER.y + 160],
-            ],
-            jitter: 24,
-          },
-        },
+         {
+           count: 6,
+           hp: 14,
+           touchDamage: ENEMY_TOUCH_DAMAGE + 2,
+           exp: 10,
+           enemyType: "ranged",
+           spawn: {
+             kind: "points",
+             points: [
+               [ARENA_CENTER.x - 240, ARENA_CENTER.y],
+               [ARENA_CENTER.x + 240, ARENA_CENTER.y],
+               [ARENA_CENTER.x, ARENA_CENTER.y - 220],
+               [ARENA_CENTER.x, ARENA_CENTER.y + 220],
+               [ARENA_CENTER.x - 160, ARENA_CENTER.y - 160],
+               [ARENA_CENTER.x + 160, ARENA_CENTER.y + 160],
+             ],
+             jitter: 24,
+           },
+         },
       ],
     },
   ];

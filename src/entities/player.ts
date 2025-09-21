@@ -2,6 +2,7 @@ import type { PlayerData } from "../config/types";
 import { PLAYER_MAX_HP, PLAYER_SPEED } from "../config/constants";
 import { PALETTE } from "../config/palette";
 import { attachHealthLabel } from "../ui/healthLabel";
+import { createHealthBar } from "../ui/healthBar";
 import { lighten } from "../utils/color";
 
 export const PLAYER_DATA: PlayerData = {
@@ -25,5 +26,6 @@ export const createPlayer = (k: any) => {
   ]);
 
   attachHealthLabel(k, player);
+  createHealthBar(k, player);
   return player;
 };

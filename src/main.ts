@@ -20,6 +20,7 @@ import { createWaveManager } from "./systems/waveManager";
 import { knockback } from "./utils/combat";
 import { createXpBar } from "./ui/xpBar";
 import { createWaveHud } from "./ui/waveHud";
+import { createHealthBar } from "./ui/healthBar";
 import {
   getGamePhase,
   isGameRunning,
@@ -93,6 +94,7 @@ const resetRunState = (options: { showStartMenu?: boolean } = {}) => {
   destroyByTag("fastSwordSlash");
   destroyByTag("expShard");
   destroyByTag("healthLabel");
+  destroyByTag("healthBar");
 
   const center = k.center();
   if (typeof player.setHP === "function") {
@@ -171,6 +173,8 @@ const handleStart = () => {
 
 const handleRestart = () => {
   resetRunState({ showStartMenu: false });
+  // Recreate health bar after reset
+  createHealthBar(k, player);
   startRun();
 };
 
@@ -180,7 +184,10 @@ menus = createGameMenus(k, {
   onRestart: handleRestart,
 });
 
-resetRunState({ showStartMenu: true });
+ resetRunState({ showStartMenu: true });
+
+ // Recreate health bar after reset
+ createHealthBar(k, player);
 
 player.on("death", () => {
   waveManager.stopWaves();

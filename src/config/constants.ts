@@ -10,6 +10,14 @@ export const ENEMY_SPEED = 90;
 export const ENEMY_TOUCH_DAMAGE = 1;
 export const ENEMY_EXP = 1;
 
+export const RANGED_ENEMY_SPEED = 60;
+export const RANGED_ENEMY_ATTACK_DISTANCE = 200;
+export const RANGED_ENEMY_BULLET_SPEED = 400;
+export const RANGED_ENEMY_BULLET_DAMAGE = 2;
+export const RANGED_ENEMY_IDLE_TIME = 0.5;
+export const RANGED_ENEMY_ATTACK_TIME = 1.0;
+export const RANGED_ENEMY_MOVE_TIME = 2.0;
+
 export const KNOCKBACK_DIST = 36;
 export const KNOCKBACK_TIME = 0.12;
 export const TOUCH_COOLDOWN = 0.4;
