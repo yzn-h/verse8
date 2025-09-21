@@ -18,6 +18,14 @@ export const RANGED_ENEMY_IDLE_TIME = 0.5;
 export const RANGED_ENEMY_ATTACK_TIME = 1.0;
 export const RANGED_ENEMY_MOVE_TIME = 2.0;
 
+export const BIT_ENEMY_SPEED = 70;
+export const BIT_ENEMY_CHARGING_SPEED = 200;
+export const BIT_ENEMY_TOUCH_DAMAGE = 2;
+export const BIT_ENEMY_EXP = 3;
+export const BIT_ENEMY_CHARGE_DURATION = 1.5;
+export const BIT_ENEMY_CHARGE_COOLDOWN = 3.0;
+export const BIT_ENEMY_KNOCKBACK_RESISTANCE = 0.2;
+
 export const KNOCKBACK_DIST = 36;
 export const KNOCKBACK_TIME = 0.12;
 export const TOUCH_COOLDOWN = 0.4;

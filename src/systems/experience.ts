@@ -117,6 +117,7 @@ export const spawnExpShard = (k: any, player: any, value: number, origin: any) =
 
 export const dropExp = (k: any, player: any, total: number, origin: any) => {
   if (total <= 0) return;
+  console.log(`Dropping ${total} XP at position:`, origin);
   const drops = distributeExp(total);
   const originVec = origin.clone
     ? origin.clone()
@@ -125,6 +126,7 @@ export const dropExp = (k: any, player: any, total: number, origin: any) => {
     const dropOrigin = originVec.clone
       ? originVec.clone()
       : k.vec2(originVec.x, originVec.y);
+    console.log(`Spawning XP shard with value ${value}`);
     spawnExpShard(k, player, value, dropOrigin);
   });
 };

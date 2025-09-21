@@ -75,14 +75,14 @@ export const createRangedEnemy = (
     if (levelUpState.active) return;
 
     // Move toward player
-    if (player.exists()) {
+    if (player && player.pos) {
       const dir = player.pos.sub(enemy.pos).unit();
       enemy.move(dir.scale(enemyData.speed));
     }
 
     // Attack timer
     attackTimer -= k.dt();
-    if (attackTimer <= 0 && player.exists()) {
+    if (attackTimer <= 0 && player && player.pos) {
       const dir = player.pos.sub(enemy.pos).unit();
 
       // Create bullet
@@ -117,6 +117,7 @@ export const createRangedEnemy = (
   });
 
   enemy.on("death", () => {
+    console.log("Ranged enemy died, dropping XP");
     const amount = Math.max(0, Math.round(enemy.data.exp ?? RANGED_ENEMY_BASE.exp));
     if (amount > 0) {
       const origin = enemy.pos.clone ? enemy.pos.clone() : k.vec2(enemy.pos.x, enemy.pos.y);

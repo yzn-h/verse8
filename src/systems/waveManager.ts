@@ -1,4 +1,4 @@
-import { ENEMY_SPEED, ENEMY_TOUCH_DAMAGE } from "../config/constants";
+import { ENEMY_SPEED, ENEMY_TOUCH_DAMAGE, BIT_ENEMY_TOUCH_DAMAGE, BIT_ENEMY_EXP } from "../config/constants";
 import { PALETTE } from "../config/palette";
 import type {
   EdgeName,
@@ -12,6 +12,7 @@ import { distribute, randRange } from "../utils/math";
 import { jitterVec } from "../utils/vector";
 import { createEnemy } from "../entities/enemy";
 import { createRangedEnemy } from "../entities/rangedEnemy";
+import { createBitEnemy } from "../entities/bit";
 import { getActiveEnemyCount } from "./enemyManager";
 import { isGameRunning } from "./gameState";
 import { levelUpState } from "./playerProgression";
@@ -137,6 +138,13 @@ const spawnEnemyGroup = (
   return resolved.slice(0, group.count).map((pos) => {
     if (group.enemyType === "ranged") {
       return createRangedEnemy(k, player, pos, {
+        maxHP: group.hp,
+        speed: group.speed,
+        touchDamage: group.touchDamage,
+        exp: group.exp,
+      });
+    } else if (group.enemyType === "bit") {
+      return createBitEnemy(k, player, pos, {
         maxHP: group.hp,
         speed: group.speed,
         touchDamage: group.touchDamage,
@@ -405,38 +413,59 @@ export const createWaveManager = (
         },
       ],
     },
-    {
-      name: "Finale",
-      delay: 1,
-      enemies: [
-        {
-          count: 12,
-          hp: 7,
-          speed: ENEMY_SPEED * 1.2,
-          exp: 4,
-          spawn: { kind: "edge", edge: "random", padding: 16 },
-        },
+     {
+       name: "Finale",
+       delay: 1,
+       enemies: [
+         {
+           count: 12,
+           hp: 7,
+           speed: ENEMY_SPEED * 1.2,
+           exp: 4,
+           spawn: { kind: "edge", edge: "random", padding: 16 },
+         },
+          {
+            count: 6,
+            hp: 14,
+            touchDamage: ENEMY_TOUCH_DAMAGE + 2,
+            exp: 10,
+            enemyType: "ranged",
+            spawn: {
+              kind: "points",
+              points: [
+                [ARENA_CENTER.x - 240, ARENA_CENTER.y],
+                [ARENA_CENTER.x + 240, ARENA_CENTER.y],
+                [ARENA_CENTER.x, ARENA_CENTER.y - 220],
+                [ARENA_CENTER.x, ARENA_CENTER.y + 220],
+                [ARENA_CENTER.x - 160, ARENA_CENTER.y - 160],
+                [ARENA_CENTER.x + 160, ARENA_CENTER.y + 160],
+              ],
+              jitter: 24,
+            },
+          },
+       ],
+     },
+     {
+       name: "Stampede",
+       delay: 1,
+       enemies: [
+         {
+           count: 8,
+           hp: 10,
+           touchDamage: BIT_ENEMY_TOUCH_DAMAGE,
+           exp: BIT_ENEMY_EXP,
+           enemyType: "bit",
+           spawn: { kind: "edge", edge: "random", padding: 32 },
+         },
          {
            count: 6,
-           hp: 14,
-           touchDamage: ENEMY_TOUCH_DAMAGE + 2,
-           exp: 10,
-           enemyType: "ranged",
-           spawn: {
-             kind: "points",
-             points: [
-               [ARENA_CENTER.x - 240, ARENA_CENTER.y],
-               [ARENA_CENTER.x + 240, ARENA_CENTER.y],
-               [ARENA_CENTER.x, ARENA_CENTER.y - 220],
-               [ARENA_CENTER.x, ARENA_CENTER.y + 220],
-               [ARENA_CENTER.x - 160, ARENA_CENTER.y - 160],
-               [ARENA_CENTER.x + 160, ARENA_CENTER.y + 160],
-             ],
-             jitter: 24,
-           },
+           hp: 6,
+           speed: ENEMY_SPEED * 1.3,
+           exp: 3,
+           spawn: { kind: "random", padding: 120 },
          },
-      ],
-    },
+       ],
+     },
   ];
 
   const waveState: {

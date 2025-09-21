@@ -52,6 +52,7 @@ export const createEnemy = (
   registerEnemy(enemy);
 
   enemy.on("death", () => {
+    console.log("Enemy died, dropping XP");
     const amount = Math.max(0, Math.round(enemy.data.exp ?? ENEMY_BASE.exp));
     if (amount > 0) {
       const origin = enemy.pos.clone ? enemy.pos.clone() : k.vec2(enemy.pos.x, enemy.pos.y);

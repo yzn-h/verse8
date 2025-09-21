@@ -226,7 +226,9 @@ k.onGamepadButtonPress?.("start", togglePauseMenu);
 // === Combat ===
 k.onCollide("dagger", "enemy", (_d: any, enemy: any) => {
   if (!isGameRunning()) return;
+  console.log(`Dagger hit enemy, damage: ${dagger.data.damage}, enemy health before: ${enemy.hp()}`);
   enemy.hurt(dagger.data.damage);
+  console.log(`Enemy health after: ${enemy.hp()}`);
   knockback(k, enemy, player.pos, DAGGER_KNOCKBACK_DIST);
   if (Math.random() < 0.85) {
     audio.playEnemyHit();
@@ -242,7 +244,9 @@ k.onCollide("fastSwordSlash", "enemy", (slash: any, enemy: any) => {
   slash.hitTargets.add(enemy);
   const damage = Math.max(0, slash.damage ?? 0);
   if (damage > 0) {
+    console.log(`Fast sword hit enemy, damage: ${damage}, enemy health before: ${enemy.hp()}`);
     enemy.hurt(damage);
+    console.log(`Enemy health after: ${enemy.hp()}`);
   }
   knockback(k, enemy, slash.pos ?? player.pos);
   if (damage > 0 && Math.random() < 0.7) {
