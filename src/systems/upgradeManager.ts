@@ -9,6 +9,11 @@ import {
   applyFastSwordDefinition,
   getNextFastSwordLevel,
 } from "../entities/fastSword";
+import {
+  applyFireWandDefinition,
+  getNextFireWandLevel,
+  FIRE_WAND_LEVELS,
+} from "../entities/fireWand";
 import { lighten } from "../utils/color";
 import {
   consumePendingLevelUp,
@@ -97,7 +102,39 @@ const buildFastSwordUpgradeOption = (sword: any): UpgradeOption | null => {
   };
 };
 
-const buildUpgradePool = (dagger: any, sword: any): UpgradeOption[] => {
+const buildFireWandUpgradeOption = (fireWand: any): UpgradeOption | null => {
+  const currentLevel = fireWand.data.level ?? 0;
+  const nextDef = getNextFireWandLevel(currentLevel);
+  if (!nextDef) return null;
+
+  const prevDef =
+    FIRE_WAND_LEVELS.find((def) => def.level === currentLevel) ?? FIRE_WAND_LEVELS[0];
+  const projectileDelta = nextDef.projectileCount - prevDef.projectileCount;
+  const damageDelta = nextDef.damage - prevDef.damage;
+  const sizeDelta = nextDef.projectileSize - prevDef.projectileSize;
+
+  const deltas = [
+    formatStatDelta(
+      `projectile${Math.abs(projectileDelta) === 1 ? "" : "s"}`,
+      projectileDelta
+    ),
+    formatStatDelta("damage", damageDelta),
+    formatStatDelta("size", sizeDelta),
+  ].filter(Boolean);
+
+  const statsText = deltas.length > 0 ? ` (${deltas.join(", ")})` : "";
+
+  return {
+    id: `fire-wand-level-${nextDef.level}`,
+    name: `${nextDef.name} (Lv.${nextDef.level})`,
+    description: `${nextDef.description}${statsText}`,
+    apply: () => {
+      applyFireWandDefinition(fireWand, nextDef);
+    },
+  };
+};
+
+const buildUpgradePool = (dagger: any, sword: any, fireWand: any): UpgradeOption[] => {
   const pool: UpgradeOption[] = [];
 
   const daggerUpgrade = buildDaggerUpgradeOption(dagger);
@@ -108,6 +145,11 @@ const buildUpgradePool = (dagger: any, sword: any): UpgradeOption[] => {
   const swordUpgrade = buildFastSwordUpgradeOption(sword);
   if (swordUpgrade) {
     pool.push(swordUpgrade);
+  }
+
+  const fireWandUpgrade = buildFireWandUpgradeOption(fireWand);
+  if (fireWandUpgrade) {
+    pool.push(fireWandUpgrade);
   }
 
   return pool;
@@ -143,6 +185,7 @@ export const createUpgradeManager = (
   k: any,
   dagger: any,
   fastSword: any,
+  fireWand: any,
   refreshXpBar: () => void,
   hooks: UpgradeManagerHooks = {}
 ) => {
@@ -204,7 +247,7 @@ export const createUpgradeManager = (
     if (!consumePendingLevelUp()) return;
 
     setLevelUpActive(true);
-    const pool = buildUpgradePool(dagger, fastSword);
+    const pool = buildUpgradePool(dagger, fastSword, fireWand);
     const options = pickUpgradeOptions(pool, 3);
     levelUpMenuState.options = options;
     showLevelUpMenu(options);

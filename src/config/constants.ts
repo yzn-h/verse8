@@ -43,5 +43,12 @@ export const XP_BAR_BOTTOM_OFFSET = 28;
 export const EXP_MAGNET_BASE_SPEED = 6;
 export const EXP_MAGNET_SPEED_GROWTH = 4;
 
+export const FIRE_WAND_DAMAGE = 2;
+export const FIRE_WAND_COOLDOWN = 1.2;
+export const FIRE_WAND_RANGE = 300;
+export const FIRE_WAND_PROJECTILE_SIZE = 8;
+export const FIRE_WAND_PROJECTILE_SPEED = 200;
+export const FIRE_WAND_PROJECTILE_DURATION = 0.8;
+
 export const ARENA_WIDTH = 800;
 export const ARENA_HEIGHT = 600;

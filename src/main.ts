@@ -8,6 +8,7 @@ import {
 } from "./config/constants";
 import { createDagger, applyDaggerLevel, DAGGER_DATA } from "./entities/dagger";
 import { createFastSword, FAST_SWORD_DATA } from "./entities/fastSword";
+import { createFireWand, FIRE_WAND_DATA } from "./entities/fireWand";
 import { createPlayer } from "./entities/player";
 import { createUpgradeManager } from "./systems/upgradeManager";
 import {
@@ -48,12 +49,14 @@ const audio = createAudioManager(k);
 const player = createPlayer(k);
 const dagger = createDagger(k, player);
 const fastSword = createFastSword(k, player);
+const fireWand = createFireWand(k, player);
 
 const { updateXpBarUI } = createXpBar(k);
 const upgradeManager = createUpgradeManager(
   k,
   dagger,
   fastSword,
+  fireWand,
   updateXpBarUI,
   {
     onMenuOpen: () => {
@@ -111,6 +114,9 @@ const resetRunState = (options: { showStartMenu?: boolean } = {}) => {
 
   Object.assign(fastSword.data, { ...FAST_SWORD_DATA });
   fastSword.resetAttackTimer?.();
+
+  Object.assign(fireWand.data, { ...FIRE_WAND_DATA });
+  fireWand.resetAttackTimer?.();
 
   initPlayerProgression();
   updateXpBarUI();
@@ -252,6 +258,26 @@ k.onCollide("fastSwordSlash", "enemy", (slash: any, enemy: any) => {
   if (damage > 0 && Math.random() < 0.7) {
     audio.playEnemyHit();
   }
+});
+
+k.onCollide("fireWandProjectile", "enemy", (projectile: any, enemy: any) => {
+  if (!isGameRunning()) return;
+  if (!projectile.hitTargets) {
+    projectile.hitTargets = new Set();
+  }
+  if (projectile.hitTargets.has(enemy)) return;
+  projectile.hitTargets.add(enemy);
+  const damage = Math.max(0, projectile.damage ?? 0);
+  if (damage > 0) {
+    console.log(`Fire wand hit enemy, damage: ${damage}, enemy health before: ${enemy.hp()}`);
+    enemy.hurt(damage);
+    console.log(`Enemy health after: ${enemy.hp()}`);
+  }
+  knockback(k, enemy, projectile.pos ?? player.pos);
+  if (damage > 0 && Math.random() < 0.8) {
+    audio.playEnemyHit();
+  }
+  k.destroy(projectile);
 });
 
 k.onCollide("enemy", "player", (enemy: any, p: any) => {

@@ -30,19 +30,32 @@ export type DaggerData = {
 };
 
 export type FastSwordData = {
-   kind: "fastSword";
-   level: number;
-   active: boolean;
-   slashCount: number;
-   damage: number;
-   cooldown: number;
-   range: number;
-   spacing: number;
-   slashWidth: number;
-   slashHeight: number;
-   slashDuration: number;
-   sequenceDelay: number;
- };
+    kind: "fastSword";
+    level: number;
+    active: boolean;
+    slashCount: number;
+    damage: number;
+    cooldown: number;
+    range: number;
+    spacing: number;
+    slashWidth: number;
+    slashHeight: number;
+    slashDuration: number;
+    sequenceDelay: number;
+  };
+
+export type FireWandData = {
+  kind: "fireWand";
+  level: number;
+  active: boolean;
+  projectileCount: number;
+  damage: number;
+  cooldown: number;
+  range: number;
+  projectileSize: number;
+  projectileSpeed: number;
+  projectileDuration: number;
+};
 
 export type RangedEnemyData = {
     kind: "rangedEnemy";
