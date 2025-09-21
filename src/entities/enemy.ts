@@ -4,6 +4,7 @@ import { PALETTE } from "../config/palette";
 import { registerEnemy } from "../systems/enemyManager";
 import { dropExp } from "../systems/experience";
 import { levelUpState } from "../systems/playerProgression";
+import { isGameRunning } from "../systems/gameState";
 import { attachHealthLabel } from "../ui/healthLabel";
 import { lighten } from "../utils/color";
 import { unitVec } from "../utils/vector";
@@ -59,6 +60,7 @@ export const createEnemy = (
   });
 
   enemy.onUpdate(() => {
+    if (!isGameRunning()) return;
     if (levelUpState.active) return;
     const dir = unitVec(k, player.pos.sub(enemy.pos));
     enemy.move(dir.x * enemy.data.speed, dir.y * enemy.data.speed);

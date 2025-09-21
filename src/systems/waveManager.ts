@@ -10,6 +10,8 @@ import { distribute, randRange } from "../utils/math";
 import { jitterVec } from "../utils/vector";
 import { createEnemy } from "../entities/enemy";
 import { getActiveEnemyCount } from "./enemyManager";
+import { isGameRunning } from "./gameState";
+import { levelUpState } from "./playerProgression";
 
 const EDGES: EdgeName[] = ["top", "bottom", "left", "right"];
 
@@ -186,9 +188,9 @@ export const createWaveManager = (k: any, player: any) => {
   } = {
     startedAt: k.time(),
     index: -1,
-    running: true,
+    running: false,
     phase: "waiting",
-    nextWaveAt: WAVES.length > 0 ? k.time() + (WAVES[0]?.delay ?? 0) : null,
+    nextWaveAt: null,
     currentName: WAVES.length > 0 ? WAVES[0]?.name ?? "Wave 1" : "No waves",
   };
 
@@ -200,12 +202,77 @@ export const createWaveManager = (k: any, player: any) => {
     wave.enemies.forEach((group) => spawnEnemyGroup(k, player, group));
   };
 
-  const waitForEnemiesClear = async (pollSeconds = 0.25) => {
-    waveState.phase = "clearing";
-    while (waveState.running && getActiveEnemyCount() > 0) {
-      await k.wait(pollSeconds);
-    }
-  };
+  const waitForGameplayWindow = () =>
+    new Promise<void>((resolve) => {
+      if (isGameRunning() && !levelUpState.active) {
+        resolve();
+        return;
+      }
+      const ticker = k.onUpdate(() => {
+        if (!waveState.running) {
+          ticker.cancel();
+          resolve();
+          return;
+        }
+        if (isGameRunning() && !levelUpState.active) {
+          ticker.cancel();
+          resolve();
+        }
+      });
+    });
+
+  const waitForDelay = (seconds: number) =>
+    new Promise<void>((resolve) => {
+      if (seconds <= 0) {
+        waveState.nextWaveAt = null;
+        resolve();
+        return;
+      }
+      let remaining = seconds;
+      waveState.nextWaveAt = k.time() + seconds;
+      const ticker = k.onUpdate(() => {
+        if (!waveState.running) {
+          ticker.cancel();
+          waveState.nextWaveAt = null;
+          resolve();
+          return;
+        }
+        if (!isGameRunning() || levelUpState.active) {
+          return;
+        }
+        remaining -= k.dt();
+        if (remaining <= 0) {
+          waveState.nextWaveAt = null;
+          ticker.cancel();
+          resolve();
+          return;
+        }
+        waveState.nextWaveAt = k.time() + Math.max(0, remaining);
+      });
+    });
+
+  const waitForEnemiesClear = () =>
+    new Promise<void>((resolve) => {
+      waveState.phase = "clearing";
+      if (getActiveEnemyCount() <= 0) {
+        resolve();
+        return;
+      }
+      const ticker = k.onUpdate(() => {
+        if (!waveState.running) {
+          ticker.cancel();
+          resolve();
+          return;
+        }
+        if (!isGameRunning() || levelUpState.active) {
+          return;
+        }
+        if (getActiveEnemyCount() <= 0) {
+          ticker.cancel();
+          resolve();
+        }
+      });
+    });
 
   const runWaveSequence = async () => {
     if (WAVES.length === 0) {
@@ -219,15 +286,17 @@ export const createWaveManager = (k: any, player: any) => {
       const wave = WAVES[i];
       if (!waveState.running) break;
 
+      await waitForGameplayWindow();
       waveState.phase = "waiting";
       waveState.currentName = wave.name ?? `Wave ${i + 1}`;
       waveState.nextWaveAt = wave.delay > 0 ? k.time() + wave.delay : k.time();
 
       if (wave.delay > 0) {
-        await k.wait(wave.delay);
+        await waitForDelay(wave.delay);
       }
 
       if (!waveState.running) break;
+      await waitForGameplayWindow();
       spawnWave(wave, i);
       await waitForEnemiesClear();
 
@@ -243,6 +312,36 @@ export const createWaveManager = (k: any, player: any) => {
     }
   };
 
+  const resetWaveState = () => {
+    waveState.startedAt = k.time();
+    waveState.index = -1;
+    waveState.running = false;
+    waveState.phase = "waiting";
+    waveState.nextWaveAt = null;
+    waveState.currentName = WAVES.length > 0 ? WAVES[0]?.name ?? "Wave 1" : "No waves";
+  };
+
+  let currentSequence: Promise<void> | null = null;
+
+  const startWaves = () => {
+    resetWaveState();
+    waveState.running = true;
+    waveState.startedAt = k.time();
+    if (WAVES.length > 0) {
+      const firstDelay = WAVES[0]?.delay ?? 0;
+      waveState.nextWaveAt = firstDelay > 0 ? k.time() + firstDelay : k.time();
+    } else {
+      waveState.nextWaveAt = null;
+    }
+    currentSequence = runWaveSequence();
+    currentSequence
+      ?.catch((err) => console.error("Wave sequence halted", err))
+      .finally(() => {
+        currentSequence = null;
+      });
+    return currentSequence;
+  };
+
   const stopWaves = () => {
     waveState.running = false;
     waveState.phase = "stopped";
@@ -254,6 +353,8 @@ export const createWaveManager = (k: any, player: any) => {
     WAVES,
     waveState,
     runWaveSequence,
+    startWaves,
+    resetWaves: resetWaveState,
     stopWaves,
   };
 };

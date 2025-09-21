@@ -1,6 +1,7 @@
 import { PALETTE } from "../config/palette";
 import type { FastSwordData } from "../config/types";
 import { levelUpState } from "../systems/playerProgression";
+import { isGameRunning } from "../systems/gameState";
 
 export type FastSwordLevelDefinition = {
   level: number;
@@ -164,6 +165,7 @@ export const createFastSword = (k: any, player: any) => {
     ]);
 
     slash.onUpdate(() => {
+      if (!isGameRunning()) return;
       slash.life -= k.dt();
       if (slash.life <= 0) {
         k.destroy(slash);
@@ -204,6 +206,7 @@ export const createFastSword = (k: any, player: any) => {
       const offsetVec = k.vec2(baseRangeX + offsetX, baseRangeY + offsetY);
 
       const scheduleSlash = () => {
+        if (!isGameRunning()) return;
         if (!sword.data.active || levelUpState.active) return;
         spawnSlash(
           offsetVec,
@@ -224,6 +227,7 @@ export const createFastSword = (k: any, player: any) => {
   sword.onUpdate(() => {
     sword.pos = player.pos;
     if (!sword.data.active) return;
+    if (!isGameRunning()) return;
     if (levelUpState.active) return;
 
     sword.attackTimer -= k.dt();

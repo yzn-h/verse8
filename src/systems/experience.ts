@@ -8,6 +8,7 @@ import { lighten } from "../utils/color";
 import { clamp, randRange } from "../utils/math";
 import { lerpVec } from "../utils/vector";
 import { playerStats } from "./playerProgression";
+import { isGameRunning } from "./gameState";
 
 const EXP_TIER_DEFS: ExpTierDef[] = [
   { value: 25, color: PALETTE.ember, radius: 12 },
@@ -80,6 +81,7 @@ export const spawnExpShard = (k: any, player: any, value: number, origin: any) =
   ]);
 
   shard.onUpdate(() => {
+    if (!isGameRunning()) return;
     const data = shard as unknown as ExpShardComp & typeof shard;
     const toPlayer = player.pos.sub(shard.pos);
     const distance = toPlayer.len();

@@ -13,6 +13,8 @@ export const attachHealthLabel = (k: any, target: any, yOffset = -28) => {
     k.pos(target.pos.x, target.pos.y + yOffset),
     k.color(...PALETTE.text),
     k.anchor("center"),
+    "healthLabel",
+    "ui",
     { yOffset },
   ]);
 
@@ -26,5 +28,6 @@ export const attachHealthLabel = (k: any, target: any, yOffset = -28) => {
   target.on("hurt", refresh);
   target.on("heal", refresh);
   target.on("death", () => k.destroy(label));
+  target.on("destroy", () => k.destroy(label));
   refresh();
 };

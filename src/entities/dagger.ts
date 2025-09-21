@@ -6,6 +6,7 @@ import {
 } from "../config/constants";
 import { PALETTE } from "../config/palette";
 import { levelUpState } from "../systems/playerProgression";
+import { isGameRunning } from "../systems/gameState";
 import { lighten } from "../utils/color";
 
 export type DaggerLevelDefinition = {
@@ -150,6 +151,7 @@ export const createDagger = (k: any, player: any) => {
 
   dagger.onUpdate(() => {
     dagger.pos = player.pos;
+    if (!isGameRunning()) return;
     if (levelUpState.active) return;
 
     dagger.rotation += dagger.data.rotSpeed * k.dt();

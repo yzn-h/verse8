@@ -1,6 +1,7 @@
 import { PALETTE } from "../config/palette";
 import { playerStats } from "../systems/playerProgression";
 import { getActiveEnemyCount } from "../systems/enemyManager";
+import { getGamePhase } from "../systems/gameState";
 import type { WaveManager } from "../systems/waveManager";
 
 export const createWaveHud = (k: any, waveManager: WaveManager) => {
@@ -14,35 +15,46 @@ export const createWaveHud = (k: any, waveManager: WaveManager) => {
 
   waveHud.onUpdate(() => {
     const { WAVES, waveState } = waveManager;
+    const gamePhase = getGamePhase();
+
+    if (gamePhase === "start") {
+      waveHud.text = "Ready\nPress Enter to begin";
+      return;
+    }
+
     const total = WAVES.length;
     const nextIn =
-      waveState.nextWaveAt != null
+      gamePhase === "running" && waveState.nextWaveAt != null
         ? Math.max(0, waveState.nextWaveAt - k.time())
         : null;
 
     let status = "";
-    switch (waveState.phase) {
-      case "waiting":
-        status =
-          nextIn != null && Number.isFinite(nextIn)
-            ? `Next: ${waveState.currentName} in ${nextIn.toFixed(1)}s`
-            : `Next: ${waveState.currentName}`;
-        break;
-      case "spawning":
-        status = `Spawning ${waveState.currentName}`;
-        break;
-      case "clearing":
-        status = `Enemies remaining: ${getActiveEnemyCount()}`;
-        break;
-      case "done":
-        status = "All waves cleared";
-        break;
-      case "stopped":
-        status = "Player defeated";
-        break;
-      default:
-        status = waveState.currentName;
-        break;
+    if (gamePhase === "paused") {
+      status = "Paused";
+    } else {
+      switch (waveState.phase) {
+        case "waiting":
+          status =
+            nextIn != null && Number.isFinite(nextIn)
+              ? `Next: ${waveState.currentName} in ${nextIn.toFixed(1)}s`
+              : `Next: ${waveState.currentName}`;
+          break;
+        case "spawning":
+          status = `Spawning ${waveState.currentName}`;
+          break;
+        case "clearing":
+          status = `Enemies remaining: ${getActiveEnemyCount()}`;
+          break;
+        case "done":
+          status = "All waves cleared";
+          break;
+        case "stopped":
+          status = "Player defeated";
+          break;
+        default:
+          status = waveState.currentName;
+          break;
+      }
     }
 
     let displayNumber = waveState.index + 1;
@@ -61,11 +73,16 @@ export const createWaveHud = (k: any, waveManager: WaveManager) => {
       total > 0
         ? `Wave ${displayNumber}/${total}`
         : waveState.currentName ?? "No waves";
-    const lines = [
-      waveLine,
-      status,
-      `LVL ${playerStats.level} | Total XP: ${playerStats.totalExp}`,
-    ].filter(Boolean);
+
+    const lines = [waveLine];
+    if (status) {
+      lines.push(status);
+    }
+    if (gamePhase === "paused") {
+      lines.push("Press ESC to resume");
+    }
+    lines.push(`LVL ${playerStats.level} | Total XP: ${playerStats.totalExp}`);
+
     waveHud.text = lines.join("\n");
   });
 
